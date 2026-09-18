@@ -101,7 +101,7 @@ const SCORE_NAME = { "-3":"알바트로스","-2":"이글","-1":"버디","0":"파
 const scoreLabel = n => SCORE_NAME[String(n)] || (n>0 ? `+${n}타` : `${n}타`);
 const signed = n => (n>0?`+${n}`: n<0?`${n}`:"E");
 
-/* ---------- core logic: 1:1 상대 핸디캡 ---------- */
+/* ---------- core logic: 1:1 상대 핸디캡 및 승점 타이브레이커 ---------- */
 function judgePair(x, y, gross, hcp) {
   const h = hcp[pairKey(x,y)] || { giver:null, strokes:1 };
   let netX = gross[x], netY = gross[y];
@@ -110,24 +110,57 @@ function judgePair(x, y, gross, hcp) {
   const winner = netX < netY ? x : netY < netX ? y : null;
   return { x, y, netX, netY, winner, giver:h.giver, strokes:h.strokes };
 }
+
 function judgeHole(ids, gross, hcp) {
   const matches = allPairs(ids).map(([x,y]) => judgePair(x,y,gross,hcp));
   const tally = {};
   ids.forEach(id => tally[id] = { id, win:0, lose:0, tie:0, pts:0 });
+  
+  // 1. 매치업 승패 집계
   matches.forEach(m => {
     if (!m.winner) { tally[m.x].tie++; tally[m.y].tie++; return; }
     const loser = m.winner === m.x ? m.y : m.x;
     tally[m.winner].win++; tally[loser].lose++;
   });
+  
+  // 2. 승점 계산 (승리 - 패배)
   ids.forEach(id => tally[id].pts = tally[id].win - tally[id].lose);
   const pts = ids.map(id => tally[id].pts);
   const min = Math.min(...pts), max = Math.max(...pts);
+  
   const bottom = ids.filter(id => tally[id].pts === min);
   const top    = ids.filter(id => tally[id].pts === max);
+
+  // 3. 타이브레이커: 공동 꼴찌(bottom) 중 실제 타수가 가장 높은 사람 산정
+  let soleLoser = null;
+  if (min < 0) {
+    if (bottom.length === 1) {
+      soleLoser = bottom[0];
+    } else if (bottom.length > 1) {
+      const bottomGross = bottom.map(id => gross[id]);
+      const maxGrossInBottom = Math.max(...bottomGross); // 공동 꼴찌 중 최악의 타수
+      const losersByGross = bottom.filter(id => gross[id] === maxGrossInBottom);
+      if (losersByGross.length === 1) soleLoser = losersByGross[0];
+    }
+  }
+
+  // 4. 타이브레이커: 공동 1위(top) 중 실제 타수가 가장 낮은 사람 산정
+  let soleWinner = null;
+  if (max > 0) {
+    if (top.length === 1) {
+      soleWinner = top[0];
+    } else if (top.length > 1) {
+      const topGross = top.map(id => gross[id]);
+      const minGrossInTop = Math.min(...topGross); // 공동 1위 중 최고의 타수
+      const winnersByGross = top.filter(id => gross[id] === minGrossInTop);
+      if (winnersByGross.length === 1) soleWinner = winnersByGross[0];
+    }
+  }
+
   return {
     matches, tally,
-    soleLoser:  (bottom.length === 1 && min < 0) ? bottom[0] : null,
-    soleWinner: (top.length === 1 && max > 0) ? top[0] : null,
+    soleLoser,
+    soleWinner,
     allSquare: min === max,
   };
 }
