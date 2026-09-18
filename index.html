@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-<title>Golf Handicap Matchup Calculator - WAKOI/title>
+<title>홀 승부 계산기 - WAKOI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;700;900&family=Archivo:wght@600;700;800&display=swap" rel="stylesheet">
@@ -97,15 +97,17 @@ const allPairs = (ids) => {
   for (let i=0;i<ids.length;i++) for (let j=i+1;j<ids.length;j++) out.push([ids[i],ids[j]]);
   return out;
 };
-const SCORE_NAME = { "-3":"?뚮컮?몃줈??,"-2":"?닿?","-1":"踰꾨뵒","0":"??,"1":"蹂닿린","2":"?붾툝蹂닿린","3":"?몃━?뚮낫湲? };
-const scoreLabel = n => SCORE_NAME[String(n)] || (n>0 ? `+${n}?` : `${n}?`);
+const SCORE_NAME = { "-3":"알바트로스","-2":"이글","-1":"버디","0":"파","1":"보기","2":"더블보기","3":"트리플보기" };
+const scoreLabel = n => SCORE_NAME[String(n)] || (n>0 ? `+${n}타` : `${n}타`);
 const signed = n => (n>0?`+${n}`: n<0?`${n}`:"E");
 
-/* ---------- core logic: 1:1 ?곷? ?몃뵒罹?---------- */
+/* ---------- core logic: 1:1 상대 핸디캡 ---------- */
 function judgePair(x, y, gross, hcp) {
   const h = hcp[pairKey(x,y)] || { giver:null, strokes:1 };
   let netX = gross[x], netY = gross[y];
-  if (h.giver === x) netY = gross[y] - h.strokes;       // X媛 Y?먭쾶 h?瑜?以?  else if (h.giver === y) netX = gross[x] - h.strokes;  // Y媛 X?먭쾶 h?瑜?以?  const winner = netX < netY ? x : netY < netX ? y : null;
+  if (h.giver === x) netY = gross[y] - h.strokes;       // X가 Y에게 h타를 줌
+  else if (h.giver === y) netX = gross[x] - h.strokes;  // Y가 X에게 h타를 줌
+  const winner = netX < netY ? x : netY < netX ? y : null;
   return { x, y, netX, netY, winner, giver:h.giver, strokes:h.strokes };
 }
 function judgeHole(ids, gross, hcp) {
@@ -130,7 +132,7 @@ function judgeHole(ids, gross, hcp) {
   };
 }
 
-/* ---------- self-check (臾몄젣??3???뚯뒪??耳?댁뒪) ---------- */
+/* ---------- self-check (문제의 3인 테스트 케이스) ---------- */
 const HCP_3 = { "A-B":{giver:"A",strokes:1}, "A-C":{giver:"A",strokes:1}, "B-C":{giver:"B",strokes:1} };
 const SELFTEST = (() => {
   const t1 = judgeHole(["A","B","C"], {A:0,B:1,C:2}, HCP_3);
@@ -151,7 +153,7 @@ function Stepper({value, onChange, min=-4, max=8}) {
   return (
     <div className="flex items-center gap-2">
       <button className={btn} style={{background:"var(--chip)", color:"var(--ink)"}}
-              disabled={value<=min} onClick={()=>onChange(value-1)} aria-label="??? 以꾩씠湲?>
+              disabled={value<=min} onClick={()=>onChange(value-1)} aria-label="한 타 줄이기">
         <IconMinus size={26}/>
       </button>
       <div className="w-[68px] text-center">
@@ -161,7 +163,7 @@ function Stepper({value, onChange, min=-4, max=8}) {
         <div className="text-[11px] mt-1 font-medium" style={{color:"var(--ink-soft)"}}>{scoreLabel(value)}</div>
       </div>
       <button className={btn} style={{background:"var(--chip)", color:"var(--ink)"}}
-              disabled={value>=max} onClick={()=>onChange(value+1)} aria-label="??? ?섎━湲?>
+              disabled={value>=max} onClick={()=>onChange(value+1)} aria-label="한 타 늘리기">
         <IconPlus size={26}/>
       </button>
     </div>
@@ -170,9 +172,9 @@ function Stepper({value, onChange, min=-4, max=8}) {
 
 function HandicapRow({x, y, state, onChange}) {
   const opts = [
-    { key:x,    label:`${x} 以? },
-    { key:null, label:"?놁쓬" },
-    { key:y,    label:`${y} 以? },
+    { key:x,    label:`${x} 줌` },
+    { key:null, label:"없음" },
+    { key:y,    label:`${y} 줌` },
   ];
   return (
     <div className="flex items-center gap-3 py-3" style={{borderTop:"1px solid var(--line)"}}>
@@ -196,11 +198,11 @@ function HandicapRow({x, y, state, onChange}) {
         })}
       </div>
       <div className="flex items-center rounded-xl shrink-0" style={{border:"1px solid var(--line)", opacity: state.giver?1:0.35, pointerEvents: state.giver?"auto":"none"}}>
-        <button className="h-11 w-9 flex items-center justify-center" onClick={()=>onChange({...state, strokes:Math.max(1,state.strokes-1)})} aria-label="?몃뵒罹?以꾩씠湲?>
+        <button className="h-11 w-9 flex items-center justify-center" onClick={()=>onChange({...state, strokes:Math.max(1,state.strokes-1)})} aria-label="핸디캡 줄이기">
           <IconMinus size={16}/>
         </button>
         <span className="num w-8 text-center font-extrabold text-[15px]">-{state.strokes}</span>
-        <button className="h-11 w-9 flex items-center justify-center" onClick={()=>onChange({...state, strokes:Math.min(4,state.strokes+1)})} aria-label="?몃뵒罹??섎━湲?>
+        <button className="h-11 w-9 flex items-center justify-center" onClick={()=>onChange({...state, strokes:Math.min(4,state.strokes+1)})} aria-label="핸디캡 늘리기">
           <IconPlus size={16}/>
         </button>
       </div>
@@ -227,10 +229,10 @@ function HoleStrip({log, hole, live, onPick, stripRef}) {
               border: isNow ? "2px solid var(--turf)" : "1px solid var(--line)",
               opacity: played ? 1 : .55,
             }}
-            aria-label={`${n}踰??${loser?` ?⑥옄 ${loser}`:""}`}>
+            aria-label={`${n}번 홀${loser?` 패자 ${loser}`:""}`}>
             <span className="num text-[10px] leading-none" style={{opacity:.75}}>{n}</span>
             <span className="num text-[15px] font-extrabold leading-none mt-0.5">
-              {loser ? loser : played ? "?? : ""}
+              {loser ? loser : played ? "–" : ""}
             </span>
           </button>
         );
@@ -319,8 +321,8 @@ function App(){
         <div className="max-w-md mx-auto px-4 h-16 flex items-center gap-3">
           <IconFlag size={22}/>
           <div className="grow">
-            <div className="font-black text-[17px] leading-tight">? ?밸? 怨꾩궛湲?/div>
-            <div className="text-[11px]" style={{color:"#9EC4AC"}}>1:1 ?곷? ?몃뵒罹?쨌 {ids.length}??쨌 留ㅼ튂 {allPairs(ids).length}媛?/div>
+            <div className="font-black text-[17px] leading-tight">홀 승부 계산기</div>
+            <div className="text-[11px]" style={{color:"#9EC4AC"}}>1:1 상대 핸디캡 · {ids.length}인 · 매치 {allPairs(ids).length}개</div>
           </div>
           <div className="num text-right leading-none">
             <div className="text-[10px]" style={{color:"#9EC4AC"}}>HOLE</div>
@@ -331,22 +333,23 @@ function App(){
 
       <main className="max-w-md mx-auto px-4">
 
-        {/* ?몄썝 */}
+        {/* 인원 */}
         <div className="flex items-center gap-3 py-4">
           <span className="flex items-center gap-1.5 text-[13px] font-bold" style={{color:"var(--ink-soft)"}}>
-            <IconUsers size={16}/> 李멸? ?몄썝
+            <IconUsers size={16}/> 참가 인원
           </span>
           <div className="flex rounded-xl overflow-hidden ml-auto" style={{border:"1px solid var(--line)"}}>
             {[3,4].map((n,i)=>(
               <button key={n} onClick={()=>setCount(n)}
                 className="h-10 px-5 text-[14px] font-bold"
                 style={{background: count===n?"var(--turf)":"transparent", color: count===n?"#fff":"var(--ink-soft)", borderLeft:i?"1px solid var(--line)":"none"}}>
-                {n}紐?              </button>
+                {n}명
+              </button>
             ))}
           </div>
         </div>
 
-        {/* ????낅젰 */}
+        {/* 타수 입력 */}
         <section className="rounded-2xl overflow-hidden" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
           {ids.map((id,i)=>{
             const isLoser = result.soleLoser === id;
@@ -358,12 +361,13 @@ function App(){
                            background: isLoser?"color-mix(in srgb, var(--flag) 8%, var(--card))":"var(--card)"}}>
                 <Chip id={id}/>
                 <div className="grow min-w-0">
-                  <input value={names[id]} placeholder={`?뚮젅?댁뼱 ${id}`} maxLength={6}
+                  <input value={names[id]} placeholder={`플레이어 ${id}`} maxLength={6}
                     onChange={e=>setNames(s=>({...s,[id]:e.target.value}))}
                     className="w-full bg-transparent font-bold text-[16px] outline-none"
                     style={{color:"var(--ink)"}} />
                   <div className="text-[11px] font-medium mt-0.5 num" style={{color:"var(--ink-soft)"}}>
-                    {result.tally[id].win}??{result.tally[id].lose}??{result.tally[id].tie}臾?                  </div>
+                    {result.tally[id].win}승 {result.tally[id].lose}패 {result.tally[id].tie}무
+                  </div>
                 </div>
                 <Stepper value={gross[id]} onChange={v=>setGrossFor(id,v)} />
               </div>
@@ -371,12 +375,12 @@ function App(){
           })}
         </section>
 
-        {/* ?몃뵒罹?*/}
+        {/* 핸디캡 */}
         <section className="rounded-2xl mt-4 px-4" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
           <button onClick={()=>setOpenHcp(v=>!v)} className="w-full flex items-center gap-2 py-4 text-left">
-            <span className="font-bold text-[15px]">?몃뵒罹?/span>
+            <span className="font-bold text-[15px]">핸디캡</span>
             <span className="num text-[12px] px-2 py-0.5 rounded-full font-bold"
-                  style={{background:"var(--chip)", color:"var(--ink-soft)"}}>{activeHcpCount}???곸슜</span>
+                  style={{background:"var(--chip)", color:"var(--ink-soft)"}}>{activeHcpCount}쌍 적용</span>
             <span className="ml-auto transition-transform" style={{color:"var(--ink-soft)", transform:openHcp?"rotate(180deg)":"none"}}>
               <IconChev size={20}/>
             </span>
@@ -384,7 +388,7 @@ function App(){
           {openHcp && (
             <div className="pb-3">
               <p className="text-[12px] leading-snug pb-2" style={{color:"var(--ink-soft)"}}>
-                二쇰뒗 ?щ엺??怨좊Ⅴ硫?諛쏅뒗 ?щ엺????섏뿉??洹몃쭔??鍮쇨퀬 鍮꾧탳?⑸땲?? ?留덈떎 諛붽퓭???⑸땲??
+                주는 사람을 고르면 받는 사람의 타수에서 그만큼 빼고 비교합니다. 홀마다 바꿔도 됩니다.
               </p>
               {allPairs(ids).map(([x,y])=>(
                 <HandicapRow key={pairKey(x,y)} x={x} y={y}
@@ -394,10 +398,10 @@ function App(){
           )}
         </section>
 
-        {/* ?곸꽭 留ㅼ튂??*/}
+        {/* 상세 매치업 */}
         <section className="rounded-2xl mt-4 px-4" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
           <button onClick={()=>setOpenDetail(v=>!v)} className="w-full flex items-center gap-2 py-4 text-left">
-            <span className="font-bold text-[15px]">留ㅼ튂??{result.matches.length}媛?蹂닿린</span>
+            <span className="font-bold text-[15px]">매치업 {result.matches.length}개 보기</span>
             <span className="ml-auto transition-transform" style={{color:"var(--ink-soft)", transform:openDetail?"rotate(180deg)":"none"}}>
               <IconChev size={20}/>
             </span>
@@ -414,14 +418,14 @@ function App(){
                     <Chip id={m.y} size={26}/>
                     {m.giver && (
                       <span className="text-[11px] ml-1 font-medium" style={{color:"var(--ink-soft)"}}>
-                        {m.giver}??m.giver===m.x?m.y:m.x} -{m.strokes}
+                        {m.giver}→{m.giver===m.x?m.y:m.x} -{m.strokes}
                       </span>
                     )}
                   </div>
                   <span className="text-[12px] font-bold px-2.5 py-1 rounded-lg shrink-0"
                         style={{background: m.winner?"color-mix(in srgb, var(--turf) 14%, transparent)":"var(--chip)",
                                 color: m.winner?"var(--turf)":"var(--ink-soft)"}}>
-                    {m.winner ? `${nameOf(m.winner)} ?? : "臾댁듅遺"}
+                    {m.winner ? `${nameOf(m.winner)} 승` : "무승부"}
                   </span>
                 </div>
               ))}
@@ -429,19 +433,19 @@ function App(){
           )}
         </section>
 
-        {/* ?꾩쟻 */}
+        {/* 누적 */}
         <section className="rounded-2xl mt-4 p-4" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
           <div className="flex items-center gap-2 mb-1">
-            <span className="font-bold text-[15px]">?꾩쟻 {log.length}?</span>
+            <span className="font-bold text-[15px]">누적 {log.length}홀</span>
             <button onClick={undo} disabled={!log.length}
               className="ml-auto flex items-center gap-1 text-[12px] font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-30"
-              style={{background:"var(--chip)", color:"var(--ink)"}}><IconUndo size={14}/> ?섎룎由ш린</button>
+              style={{background:"var(--chip)", color:"var(--ink)"}}><IconUndo size={14}/> 되돌리기</button>
             <button onClick={resetAll}
               className="flex items-center gap-1 text-[12px] font-bold px-2.5 py-1.5 rounded-lg"
-              style={{background:"var(--chip)", color:"var(--ink)"}}><IconRotate size={14}/> 珥덇린??/button>
+              style={{background:"var(--chip)", color:"var(--ink)"}}><IconRotate size={14}/> 초기화</button>
           </div>
           {log.length === 0 ? (
-            <p className="text-[13px] py-2" style={{color:"var(--ink-soft)"}}>?????ν븯硫??ш린???볦엯?덈떎.</p>
+            <p className="text-[13px] py-2" style={{color:"var(--ink-soft)"}}>홀을 저장하면 여기에 쌓입니다.</p>
           ) : (
             <>
               <div className="flex gap-2 pt-2">
@@ -452,14 +456,14 @@ function App(){
                          style={{color: totals[id].pts>0?"var(--turf)":totals[id].pts<0?"var(--flag)":"var(--ink)"}}>
                       {signed(totals[id].pts)}
                     </div>
-                    <div className="text-[11px] mt-1" style={{color:"var(--ink-soft)"}}>?⑤룆??{totals[id].losses}</div>
+                    <div className="text-[11px] mt-1" style={{color:"var(--ink-soft)"}}>단독패 {totals[id].losses}</div>
                   </div>
                 ))}
               </div>
 
               <button onClick={()=>setOpenLog(v=>!v)} className="w-full flex items-center gap-2 pt-4 pb-1 text-left">
-                <span className="font-bold text-[14px]">?蹂?湲곕줉</span>
-                <span className="text-[12px]" style={{color:"var(--ink-soft)"}}>???쨌 ?먯닔 쨌 ?⑥옄</span>
+                <span className="font-bold text-[14px]">홀별 기록</span>
+                <span className="text-[12px]" style={{color:"var(--ink-soft)"}}>타수 · 점수 · 패자</span>
                 <span className="ml-auto transition-transform" style={{color:"var(--ink-soft)", transform:openLog?"rotate(180deg)":"none"}}>
                   <IconChev size={18}/>
                 </span>
@@ -468,9 +472,9 @@ function App(){
               {openLog && (
                 <div className="pt-1">
                   <div className="flex items-center gap-2 pb-2 text-[11px] font-bold" style={{color:"var(--ink-soft)"}}>
-                    <span className="num w-8">?</span>
+                    <span className="num w-8">홀</span>
                     {ids.map(id=><span key={id} className="grow text-center">{nameOf(id)}</span>)}
-                    <span className="w-[54px] text-right">?⑥옄</span>
+                    <span className="w-[54px] text-right">패자</span>
                   </div>
                   {log.map(rec=>(
                     <button key={rec.hole} onClick={()=>jumpToHole(rec.hole)}
@@ -484,7 +488,7 @@ function App(){
                           <span key={id} className="grow text-center">
                             <span className="num font-bold text-[15px] block leading-none"
                                   style={{color: inRound ? "var(--ink)" : "var(--ink-soft)", opacity: inRound?1:.4}}>
-                              {inRound ? signed(g) : "쨌"}
+                              {inRound ? signed(g) : "·"}
                             </span>
                             {inRound && (
                               <span className="num text-[10px] font-bold"
@@ -501,13 +505,13 @@ function App(){
                                 style={{background:"var(--flag)"}}>{rec.soleLoser}</span>
                         ) : (
                           <span className="text-[12px] font-bold px-2 py-1 rounded-lg"
-                                style={{background:"var(--chip)", color:"var(--ink-soft)"}}>?놁쓬</span>
+                                style={{background:"var(--chip)", color:"var(--ink-soft)"}}>없음</span>
                         )}
                       </span>
                     </button>
                   ))}
                   <p className="text-[11px] pt-2.5" style={{color:"var(--ink-soft)"}}>
-                    以꾩쓣 ?꾨Ⅴ硫?洹??濡??뚯븘媛 ??섏? ?몃뵒罹≪쓣 怨좎튌 ???덉뒿?덈떎. ?ㅼ떆 ??ν븯硫???뼱?곷땲??
+                    줄을 누르면 그 홀로 돌아가 타수와 핸디캡을 고칠 수 있습니다. 다시 저장하면 덮어씁니다.
                   </p>
                 </div>
               )}
@@ -515,22 +519,22 @@ function App(){
           )}
         </section>
 
-        {/* 寃利?*/}
+        {/* 검증 */}
         <section className="mt-4 mb-6 rounded-2xl p-4" style={{border:"1px dashed var(--line)"}}>
-          <div className="text-[13px] font-bold mb-1">濡쒖쭅 寃利?/div>
+          <div className="text-[13px] font-bold mb-1">로직 검증</div>
           <p className="text-[12px] leading-snug mb-3" style={{color:"var(--ink-soft)"}}>
-            3???덉떆(A?묪, A?묬, B?묬 媛?-1?)瑜?遺덈윭?듬땲?? ?댁옣 寃??寃곌낵: 耳?댁뒪1 {SELFTEST.t1?"?듦낵":"?ㅽ뙣"} 쨌 耳?댁뒪2 {SELFTEST.t2?"?듦낵":"?ㅽ뙣"}
+            3인 예시(A→B, A→C, B→C 각 -1타)를 불러옵니다. 내장 검사 결과: 케이스1 {SELFTEST.t1?"통과":"실패"} · 케이스2 {SELFTEST.t2?"통과":"실패"}
           </p>
           <div className="flex gap-2">
             <button onClick={()=>loadCase(1)} className="grow h-11 rounded-xl text-[13px] font-bold"
-                    style={{background:"var(--chip)", color:"var(--ink)"}}>耳?댁뒪 1 쨌 0/1/2</button>
+                    style={{background:"var(--chip)", color:"var(--ink)"}}>케이스 1 · 0/1/2</button>
             <button onClick={()=>loadCase(2)} className="grow h-11 rounded-xl text-[13px] font-bold"
-                    style={{background:"var(--chip)", color:"var(--ink)"}}>耳?댁뒪 2 쨌 0/1/1</button>
+                    style={{background:"var(--chip)", color:"var(--ink)"}}>케이스 2 · 0/1/1</button>
           </div>
         </section>
       </main>
 
-      {/* 寃곌낵 諛?*/}
+      {/* 결과 바 */}
       <div className="fixed bottom-0 left-0 right-0 z-30" style={{background:"var(--paper)", borderTop:"1px solid var(--line)"}}>
         <div className="max-w-md mx-auto px-4 pt-2.5" style={{paddingBottom:"calc(12px + env(safe-area-inset-bottom))"}}>
           <HoleStrip log={log} hole={hole} live={result.soleLoser} onPick={jumpToHole} stripRef={stripRef} />
@@ -541,14 +545,14 @@ function App(){
             <div className="grow min-w-0">
               {result.soleLoser ? (
                 <>
-                  <div className="text-[11px]" style={{opacity:.85}}>??????⑤룆 ?⑥옄</div>
+                  <div className="text-[11px]" style={{opacity:.85}}>이 홀의 단독 패자</div>
                   <div className="font-black text-[20px] leading-tight truncate">{nameOf(result.soleLoser)}</div>
                 </>
               ) : (
                 <>
-                  <div className="text-[11px]" style={{opacity:.85}}>?⑤룆 ?⑥옄 ?놁쓬</div>
+                  <div className="text-[11px]" style={{opacity:.85}}>단독 패자 없음</div>
                   <div className="font-black text-[18px] leading-tight truncate">
-                    {result.allSquare ? "?ъ뒪?섏뼱" : "?⑥옄 怨듬룞 ???섏뼱媛묐땲??}
+                    {result.allSquare ? "올스퀘어" : "패자 공동 — 넘어갑니다"}
                   </div>
                 </>
               )}
@@ -563,7 +567,7 @@ function App(){
           <button onClick={()=>{ if(hole>18){ setOpenLog(true); window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"}); } else saveHole(); }}
             className="mt-2 w-full h-14 rounded-2xl flex items-center justify-center gap-2 font-black text-[16px] active:scale-[.99] transition-transform"
             style={{background:"var(--turf)", color:"#fff"}}>
-            <IconSave size={20}/> {hole > 18 ? "?쇱슫??醫낅즺 ??湲곕줉 ?뺤씤" : hole === 18 ? "18踰?? ??ν븯怨?留덈Т由? : `${hole}踰?? ??ν븯怨??ㅼ쓬 ?`}
+            <IconSave size={20}/> {hole > 18 ? "라운드 종료 — 기록 확인" : hole === 18 ? "18번 홀 저장하고 마무리" : `${hole}번 홀 저장하고 다음 홀`}
           </button>
         </div>
       </div>
