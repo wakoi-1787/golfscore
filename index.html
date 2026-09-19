@@ -105,8 +105,8 @@ const signed = n => (n>0?`+${n}`: n<0?`${n}`:"E");
 function judgePair(x, y, gross, hcp) {
   const h = hcp[pairKey(x,y)] || { giver:null, strokes:1 };
   let netX = gross[x], netY = gross[y];
-  if (h.giver === x) netY = gross[y] - h.strokes;       // X가 Y에게 h타를 줌
-  else if (h.giver === y) netX = gross[x] - h.strokes;  // Y가 X에게 h타를 줌
+  if (h.giver === x) netY = gross[y] - h.strokes;
+  else if (h.giver === y) netX = gross[x] - h.strokes;
   const winner = netX < netY ? x : netY < netX ? y : null;
   return { x, y, netX, netY, winner, giver:h.giver, strokes:h.strokes };
 }
@@ -130,47 +130,40 @@ function judgeHole(ids, gross, hcp) {
   
   const bottom = ids.filter(id => tally[id].pts === min);
   const top    = ids.filter(id => tally[id].pts === max);
+  const allSquare = (min === max);
 
-  // 3. 타이브레이커: 공동 꼴찌(bottom) 중 실제 타수가 가장 높은 사람 산정
-  let soleLoser = null;
-  if (min < 0) {
-    if (bottom.length === 1) {
-      soleLoser = bottom[0];
-    } else if (bottom.length > 1) {
-      const bottomGross = bottom.map(id => gross[id]);
-      const maxGrossInBottom = Math.max(...bottomGross); // 공동 꼴찌 중 최악의 타수
-      const losersByGross = bottom.filter(id => gross[id] === maxGrossInBottom);
-      if (losersByGross.length === 1) soleLoser = losersByGross[0];
-    }
+  // 3. 타이브레이커 (단독/공동 패자 추출)
+  let finalLosers = [];
+  if (!allSquare) {
+    const bottomGross = bottom.map(id => gross[id]);
+    const maxGrossInBottom = Math.max(...bottomGross); 
+    // 승점 꼴찌들 중 실제 타수가 제일 높은 사람들을 모두 패자로 지정 (단독 또는 공동)
+    finalLosers = bottom.filter(id => gross[id] === maxGrossInBottom);
   }
 
-  // 4. 타이브레이커: 공동 1위(top) 중 실제 타수가 가장 낮은 사람 산정
-  let soleWinner = null;
-  if (max > 0) {
-    if (top.length === 1) {
-      soleWinner = top[0];
-    } else if (top.length > 1) {
-      const topGross = top.map(id => gross[id]);
-      const minGrossInTop = Math.min(...topGross); // 공동 1위 중 최고의 타수
-      const winnersByGross = top.filter(id => gross[id] === minGrossInTop);
-      if (winnersByGross.length === 1) soleWinner = winnersByGross[0];
-    }
+  // 4. 타이브레이커 (단독/공동 승자 추출)
+  let finalWinners = [];
+  if (!allSquare) {
+    const topGross = top.map(id => gross[id]);
+    const minGrossInTop = Math.min(...topGross);
+    // 승점 1위들 중 실제 타수가 제일 낮은 사람들을 모두 승자로 지정
+    finalWinners = top.filter(id => gross[id] === minGrossInTop);
   }
 
   return {
     matches, tally,
-    soleLoser,
-    soleWinner,
-    allSquare: min === max,
+    finalLosers,
+    finalWinners,
+    allSquare,
   };
 }
 
-/* ---------- self-check (문제의 3인 테스트 케이스) ---------- */
+/* ---------- self-check ---------- */
 const HCP_3 = { "A-B":{giver:"A",strokes:1}, "A-C":{giver:"A",strokes:1}, "B-C":{giver:"B",strokes:1} };
 const SELFTEST = (() => {
   const t1 = judgeHole(["A","B","C"], {A:0,B:1,C:2}, HCP_3);
   const t2 = judgeHole(["A","B","C"], {A:0,B:1,C:1}, HCP_3);
-  return { t1: t1.soleLoser === "C", t2: t2.soleLoser === "B" };
+  return { t1: t1.finalLosers.includes("C"), t2: t2.finalLosers.includes("B") };
 })();
 
 /* ---------- small UI pieces ---------- */
@@ -250,8 +243,11 @@ function HoleStrip({log, hole, live, onPick, stripRef}) {
       {Array.from({length:18},(_,i)=>i+1).map(n=>{
         const rec = log.find(r=>r.hole===n);
         const isNow = n === hole;
-        const loser = isNow ? live : rec ? rec.soleLoser : undefined;
+        const liveStr = live && live.length > 0 ? live.join(",") : undefined;
+        const recStr = rec && rec.finalLosers && rec.finalLosers.length > 0 ? rec.finalLosers.join(",") : undefined;
+        const loser = isNow ? liveStr : rec ? recStr : undefined;
         const played = isNow || !!rec;
+        
         return (
           <button key={n} data-hole={n} onClick={()=>onPick(n)}
             className="shrink-0 rounded-lg flex flex-col items-center justify-center"
@@ -264,7 +260,7 @@ function HoleStrip({log, hole, live, onPick, stripRef}) {
             }}
             aria-label={`${n}번 홀${loser?` 패자 ${loser}`:""}`}>
             <span className="num text-[10px] leading-none" style={{opacity:.75}}>{n}</span>
-            <span className="num text-[15px] font-extrabold leading-none mt-0.5">
+            <span className="num text-[15px] font-extrabold leading-none mt-0.5" style={{letterSpacing: loser && loser.length > 1 ? "-1px" : "normal"}}>
               {loser ? loser : played ? "–" : ""}
             </span>
           </button>
@@ -305,7 +301,7 @@ function App(){
       pts: Object.fromEntries(ids.map(id=>[id, result.tally[id].pts])),
       record: Object.fromEntries(ids.map(id=>[id, {...result.tally[id]}])),
       hcp: Object.fromEntries(allPairs(ids).map(([x,y])=>[pairKey(x,y), {...hcp[pairKey(x,y)]}])),
-      soleLoser: result.soleLoser, soleWinner: result.soleWinner,
+      finalLosers: result.finalLosers, finalWinners: result.finalWinners,
     }].sort((a,b)=>a.hole-b.hole));
     setHole(h=>Math.min(19, h+1));
     setGross({A:0,B:0,C:0,D:0});
@@ -329,7 +325,12 @@ function App(){
 
   const totals = useMemo(()=>{
     const t = Object.fromEntries(IDS.map(id=>[id,{pts:0,losses:0}]));
-    log.forEach(r => { Object.entries(r.pts).forEach(([id,p])=>t[id].pts+=p); if(r.soleLoser) t[r.soleLoser].losses++; });
+    log.forEach(r => { 
+      Object.entries(r.pts).forEach(([id,p])=>t[id].pts+=p); 
+      if(r.finalLosers) {
+        r.finalLosers.forEach(id => t[id].losses++);
+      }
+    });
     return t;
   }, [log]);
 
@@ -345,7 +346,7 @@ function App(){
     setOpenDetail(true);
   };
 
-  const verdictColor = result.soleLoser ? "var(--flag)" : "var(--turf-deep)";
+  const verdictColor = result.finalLosers.length > 0 ? "var(--flag)" : "var(--turf-deep)";
 
   return (
     <div className="min-h-screen pb-[248px]">
@@ -385,8 +386,8 @@ function App(){
         {/* 타수 입력 */}
         <section className="rounded-2xl overflow-hidden" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
           {ids.map((id,i)=>{
-            const isLoser = result.soleLoser === id;
-            const isWinner = result.soleWinner === id;
+            const isLoser = result.finalLosers.includes(id);
+            const isWinner = result.finalWinners.includes(id);
             return (
               <div key={id} className="flex items-center gap-3 px-3 py-3"
                    style={{borderTop: i?"1px solid var(--line)":"none",
@@ -489,7 +490,7 @@ function App(){
                          style={{color: totals[id].pts>0?"var(--turf)":totals[id].pts<0?"var(--flag)":"var(--ink)"}}>
                       {signed(totals[id].pts)}
                     </div>
-                    <div className="text-[11px] mt-1" style={{color:"var(--ink-soft)"}}>단독패 {totals[id].losses}</div>
+                    <div className="text-[11px] mt-1" style={{color:"var(--ink-soft)"}}>패배 {totals[id].losses}</div>
                   </div>
                 ))}
               </div>
@@ -533,9 +534,9 @@ function App(){
                         );
                       })}
                       <span className="w-[54px] flex justify-end">
-                        {rec.soleLoser ? (
+                        {rec.finalLosers && rec.finalLosers.length > 0 ? (
                           <span className="num text-[12px] font-extrabold px-2 py-1 rounded-lg text-white"
-                                style={{background:"var(--flag)"}}>{rec.soleLoser}</span>
+                                style={{background:"var(--flag)"}}>{rec.finalLosers.join(",")}</span>
                         ) : (
                           <span className="text-[12px] font-bold px-2 py-1 rounded-lg"
                                 style={{background:"var(--chip)", color:"var(--ink-soft)"}}>없음</span>
@@ -570,30 +571,34 @@ function App(){
       {/* 결과 바 */}
       <div className="fixed bottom-0 left-0 right-0 z-30" style={{background:"var(--paper)", borderTop:"1px solid var(--line)"}}>
         <div className="max-w-md mx-auto px-4 pt-2.5" style={{paddingBottom:"calc(12px + env(safe-area-inset-bottom))"}}>
-          <HoleStrip log={log} hole={hole} live={result.soleLoser} onPick={jumpToHole} stripRef={stripRef} />
+          <HoleStrip log={log} hole={hole} live={result.finalLosers} onPick={jumpToHole} stripRef={stripRef} />
           <div className="h-2.5" />
-          <div key={`${result.soleLoser}-${result.soleWinner}`} className="verdict-in rounded-2xl px-4 py-3 flex items-center gap-3"
+          <div key={`${result.finalLosers.join('-')}-${result.finalWinners.join('-')}`} className="verdict-in rounded-2xl px-4 py-3 flex items-center gap-3"
                style={{background:verdictColor, color:"#fff"}}>
-            <span style={{opacity:.9}}>{result.soleLoser ? <IconFlag size={24}/> : <IconTrophy size={24}/>}</span>
+            <span style={{opacity:.9}}>{result.finalLosers.length > 0 ? <IconFlag size={24}/> : <IconTrophy size={24}/>}</span>
             <div className="grow min-w-0">
-              {result.soleLoser ? (
+              {result.finalLosers.length > 0 ? (
                 <>
-                  <div className="text-[11px]" style={{opacity:.85}}>이 홀의 단독 패자</div>
-                  <div className="font-black text-[20px] leading-tight truncate">{nameOf(result.soleLoser)}</div>
+                  <div className="text-[11px]" style={{opacity:.85}}>
+                    {result.finalLosers.length > 1 ? "이 홀의 공동 패자" : "이 홀의 단독 패자"}
+                  </div>
+                  <div className="font-black text-[20px] leading-tight truncate">
+                    {result.finalLosers.map(id => nameOf(id)).join(", ")}
+                  </div>
                 </>
               ) : (
                 <>
-                  <div className="text-[11px]" style={{opacity:.85}}>단독 패자 없음</div>
+                  <div className="text-[11px]" style={{opacity:.85}}>패자 없음</div>
                   <div className="font-black text-[18px] leading-tight truncate">
-                    {result.allSquare ? "올스퀘어" : "패자 공동 — 넘어갑니다"}
+                    {result.allSquare ? "올스퀘어" : "패자를 가릴 수 없음"}
                   </div>
                 </>
               )}
             </div>
-            {result.soleWinner && (
+            {result.finalWinners.length > 0 && (
               <span className="flex items-center gap-1 text-[12px] font-bold px-2.5 py-1.5 rounded-lg shrink-0"
                     style={{background:"var(--sand)", color:"#1B1405"}}>
-                <IconTrophy size={14}/> {nameOf(result.soleWinner)}
+                <IconTrophy size={14}/> {result.finalWinners.map(id => nameOf(id)).join(", ")}
               </span>
             )}
           </div>
