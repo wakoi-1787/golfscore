@@ -7,9 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;700;900&family=Archivo:wght@600;700;800&display=swap" rel="stylesheet">
+<!-- React & Babel -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<!-- HTML2Canvas (이미지 저장용) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --paper:#F1F3EC;
@@ -66,7 +69,7 @@
 <div id="root"></div>
 
 <script type="text/babel">
-const { useState, useMemo, useEffect } = React;
+const { useState, useMemo, useEffect, useRef } = React;
 
 /* ---------- icons (lucide-style, 2px stroke) ---------- */
 const Ico = ({d, size=22, fill="none", extra}) => (
@@ -86,7 +89,9 @@ const IconUndo   = p => <Ico {...p} d={["M9 14 4 9l5-5","M4 9h11a5 5 0 0 1 0 10h
 const IconSwords = p => <Ico {...p} d={["M14.5 17.5 21 11l-1-4-4-1-6.5 6.5","M3 21l4.5-4.5","M6.5 6.5 3 3l1 4 4 1","M13 13l-6 6"]} />;
 const IconUsers  = p => <Ico {...p} d={["M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2","M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8","M22 20v-2a4 4 0 0 0-3-3.9","M16 3.1a4 4 0 0 1 0 7.8"]} />;
 const IconSave   = p => <Ico {...p} d={["M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z","M17 21v-8H7v8","M7 3v5h8"]} />;
-const IconArrow  = p => <Ico {...p} d={["M5 12h14","m13 6 6 6-6 6"]} />;
+const IconMapPin = p => <Ico {...p} d={["M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z", "M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"]} />;
+const IconDownload = p => <Ico {...p} d={["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4","M7 10l5 5 5-5","M12 15V3"]} />;
+const IconShare  = p => <Ico {...p} d={["M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8","M16 6l-4-4-4 4","M12 2v13"]} />;
 
 /* ---------- constants ---------- */
 const IDS = ["A","B","C","D"];
@@ -116,14 +121,12 @@ function judgeHole(ids, gross, hcp) {
   const tally = {};
   ids.forEach(id => tally[id] = { id, win:0, lose:0, tie:0, pts:0 });
   
-  // 1. 매치업 승패 집계
   matches.forEach(m => {
     if (!m.winner) { tally[m.x].tie++; tally[m.y].tie++; return; }
     const loser = m.winner === m.x ? m.y : m.x;
     tally[m.winner].win++; tally[loser].lose++;
   });
   
-  // 2. 승점 계산 (승리 - 패배)
   ids.forEach(id => tally[id].pts = tally[id].win - tally[id].lose);
   const pts = ids.map(id => tally[id].pts);
   const min = Math.min(...pts), max = Math.max(...pts);
@@ -132,39 +135,22 @@ function judgeHole(ids, gross, hcp) {
   const top    = ids.filter(id => tally[id].pts === max);
   const allSquare = (min === max);
 
-  // 3. 타이브레이커 (단독/공동 패자 추출)
   let finalLosers = [];
   if (!allSquare) {
     const bottomGross = bottom.map(id => gross[id]);
     const maxGrossInBottom = Math.max(...bottomGross); 
-    // 승점 꼴찌들 중 실제 타수가 제일 높은 사람들을 모두 패자로 지정 (단독 또는 공동)
     finalLosers = bottom.filter(id => gross[id] === maxGrossInBottom);
   }
 
-  // 4. 타이브레이커 (단독/공동 승자 추출)
   let finalWinners = [];
   if (!allSquare) {
     const topGross = top.map(id => gross[id]);
     const minGrossInTop = Math.min(...topGross);
-    // 승점 1위들 중 실제 타수가 제일 낮은 사람들을 모두 승자로 지정
     finalWinners = top.filter(id => gross[id] === minGrossInTop);
   }
 
-  return {
-    matches, tally,
-    finalLosers,
-    finalWinners,
-    allSquare,
-  };
+  return { matches, tally, finalLosers, finalWinners, allSquare };
 }
-
-/* ---------- self-check ---------- */
-const HCP_3 = { "A-B":{giver:"A",strokes:1}, "A-C":{giver:"A",strokes:1}, "B-C":{giver:"B",strokes:1} };
-const SELFTEST = (() => {
-  const t1 = judgeHole(["A","B","C"], {A:0,B:1,C:2}, HCP_3);
-  const t2 = judgeHole(["A","B","C"], {A:0,B:1,C:1}, HCP_3);
-  return { t1: t1.finalLosers.includes("C"), t2: t2.finalLosers.includes("B") };
-})();
 
 /* ---------- small UI pieces ---------- */
 function Chip({id, size=34}) {
@@ -270,11 +256,98 @@ function HoleStrip({log, hole, live, onPick, stripRef}) {
   );
 }
 
+/* ---------- Scorecard Template (Hidden for Export) ---------- */
+function ScorecardTemplate({ log, ids, names, courseName, totals, exportRef }) {
+  const [dateStr, setDateStr] = useState("");
+  useEffect(() => {
+    // 렌더링 시점의 날짜/시간 생성
+    const now = new Date();
+    setDateStr(now.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }));
+  }, [log]); // 로그가 업데이트 될 때마다 갱신
+
+  const nameOf = id => names[id]?.trim() || id;
+
+  return (
+    <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>
+      <div ref={exportRef} className="p-8 bg-white text-gray-900" style={{ width: '800px', fontFamily: "'Gothic A1', sans-serif" }}>
+        
+        {/* 헤더 */}
+        <div className="flex justify-between items-end border-b-4 pb-4 mb-6" style={{ borderColor: 'var(--turf-deep)' }}>
+          <div>
+            <h1 className="text-[32px] font-black tracking-tight mb-2" style={{ color: 'var(--turf-deep)' }}>WAKOI SCORECARD</h1>
+            <div className="text-[15px] font-bold text-gray-500 flex items-center gap-1.5">
+              <IconMapPin size={16}/> {courseName || "기록된 골프장이 없습니다"}
+            </div>
+          </div>
+          <div className="text-right text-[15px] font-bold text-gray-500">{dateStr}</div>
+        </div>
+        
+        {/* 요약 (패배 횟수) */}
+        <div className="flex gap-4 mb-8">
+           {ids.map(id => (
+             <div key={id} className="flex-1 rounded-2xl p-5 text-center" style={{ backgroundColor: 'var(--chip)' }}>
+                <div className="text-[20px] font-black mb-1">{nameOf(id)}</div>
+                <div className="text-[13px] text-gray-500 mb-2 font-medium">단독/공동 패배</div>
+                <div className="text-[32px] font-black leading-none num" style={{ color: totals[id].losses > 0 ? 'var(--flag)' : 'var(--ink)' }}>
+                  {totals[id].losses}회
+                </div>
+             </div>
+           ))}
+        </div>
+
+        {/* 18홀 테이블 */}
+        <table className="w-full text-center border-collapse text-[15px]">
+          <thead>
+            <tr className="text-white" style={{ backgroundColor: 'var(--turf-deep)' }}>
+              <th className="py-3 border-r border-white/20 w-20 font-bold">HOLE</th>
+              {ids.map(id => <th key={id} className="py-3 border-r border-white/20 font-bold">{nameOf(id)}</th>)}
+              <th className="py-3 font-bold w-40">이 홀의 패자</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({length: 18}, (_, i) => i + 1).map(hole => {
+              const rec = log.find(r => r.hole === hole);
+              return (
+                <tr key={hole} className="border-b" style={{ borderColor: 'var(--line)' }}>
+                  <td className="py-3 font-bold bg-gray-50 border-r" style={{ borderColor: 'var(--line)' }}>{hole}</td>
+                  {ids.map(id => {
+                    if (!rec || !rec.ids.includes(id)) {
+                      return <td key={id} className="py-3 text-gray-300 border-r" style={{ borderColor: 'var(--line)' }}>-</td>;
+                    }
+                    const g = rec.gross[id];
+                    const p = rec.pts[id];
+                    return (
+                      <td key={id} className="py-3 border-r" style={{ borderColor: 'var(--line)' }}>
+                        <span className="font-bold text-[16px]">{signed(g)}</span>
+                        <span className="text-[12px] ml-2 num font-bold" style={{ color: p>0?'var(--turf)':p<0?'var(--flag)':'#9CA3AF' }}>
+                          ({signed(p)}점)
+                        </span>
+                      </td>
+                    );
+                  })}
+                  <td className="py-3 font-black" style={{ color: rec?.finalLosers?.length > 0 ? 'var(--flag)' : 'var(--ink-soft)' }}>
+                    {rec?.finalLosers?.length > 0 ? rec.finalLosers.map(id => nameOf(id)).join(', ') : '-'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        
+        <div className="mt-8 text-center text-[12px] text-gray-400 font-bold">
+          Generated by WAKOI 승부 계산기
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- app ---------- */
 function App(){
   const [count, setCount] = useState(4);
   const ids = useMemo(()=>IDS.slice(0,count), [count]);
   const [names, setNames] = useState({A:"", B:"", C:"", D:""});
+  const [courseName, setCourseName] = useState("");
   const [gross, setGross] = useState({A:0,B:0,C:0,D:0});
   const [hcp, setHcp] = useState(()=>{
     const o={}; allPairs(IDS).forEach(([x,y])=>o[pairKey(x,y)]={giver:null,strokes:1}); return o;
@@ -284,7 +357,8 @@ function App(){
   const [openHcp, setOpenHcp] = useState(true);
   const [openDetail, setOpenDetail] = useState(false);
   const [openLog, setOpenLog] = useState(false);
-  const stripRef = React.useRef(null);
+  const stripRef = useRef(null);
+  const exportRef = useRef(null);
 
   const nameOf = id => names[id]?.trim() || id;
   const result = useMemo(()=>judgeHole(ids, gross, hcp), [ids, gross, hcp]);
@@ -307,6 +381,7 @@ function App(){
     setGross({A:0,B:0,C:0,D:0});
     window.scrollTo({top:0, behavior:"smooth"});
   };
+  
   const jumpToHole = n => {
     const rec = log.find(r=>r.hole===n);
     setHole(n);
@@ -314,6 +389,7 @@ function App(){
     if (rec) { setCount(rec.ids.length); setHcp(s=>({...s, ...rec.hcp})); }
     window.scrollTo({top:0, behavior:"smooth"});
   };
+  
   const undo = () => {
     if(!log.length) return;
     const last = log[log.length-1];
@@ -321,6 +397,7 @@ function App(){
     setHole(last.hole);
     setGross({A:0,B:0,C:0,D:0, ...last.gross});
   };
+  
   const resetAll = () => { setLog([]); setHole(1); setGross({A:0,B:0,C:0,D:0}); };
 
   const totals = useMemo(()=>{
@@ -339,17 +416,61 @@ function App(){
     if (el) el.scrollIntoView({behavior:"smooth", block:"nearest", inline:"center"});
   }, [hole]);
 
-  const loadCase = (n) => {
-    setCount(3);
-    setHcp(s=>({ ...s, "A-B":{giver:"A",strokes:1}, "A-C":{giver:"A",strokes:1}, "B-C":{giver:"B",strokes:1} }));
-    setGross(n===1 ? {A:0,B:1,C:2,D:0} : {A:0,B:1,C:1,D:0});
-    setOpenDetail(true);
+  // 이미지 생성 및 공유/다운로드 로직
+  const handleExport = async (mode) => {
+    if (!exportRef.current) return;
+    try {
+      // html2canvas 실행
+      const canvas = await window.html2canvas(exportRef.current, { 
+        scale: 2, 
+        useCORS: true, 
+        backgroundColor: '#ffffff' 
+      });
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
+      const fileName = `WAKOI_스코어카드_${dateStr}.jpg`;
+
+      if (mode === 'download') {
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = dataUrl;
+        link.click();
+      } else if (mode === 'share') {
+        canvas.toBlob(async (blob) => {
+          const file = new File([blob], fileName, { type: 'image/jpeg' });
+          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({
+                title: 'WAKOI 스코어카드',
+                text: `${courseName ? courseName : '골프장'} 라운딩 결과입니다.`,
+                files: [file]
+              });
+            } catch(err) {
+              console.log('Share canceled or failed', err);
+            }
+          } else {
+            alert("현재 브라우저/기기에서는 직접 공유를 지원하지 않아 이미지 다운로드로 대체합니다.");
+            const link = document.createElement('a');
+            link.download = fileName;
+            link.href = dataUrl;
+            link.click();
+          }
+        }, 'image/jpeg', 0.9);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("이미지 생성 중 오류가 발생했습니다.");
+    }
   };
 
   const verdictColor = result.finalLosers.length > 0 ? "var(--flag)" : "var(--turf-deep)";
 
   return (
     <div className="min-h-screen pb-[248px]">
+      
+      {/* 템플릿 (보이지 않게 렌더링 후 캡처) */}
+      <ScorecardTemplate log={log} ids={ids} names={names} courseName={courseName} totals={totals} exportRef={exportRef} />
+
       {/* header */}
       <header className="sticky top-0 z-20" style={{background:"var(--turf-deep)", color:"#F3F7F1"}}>
         <div className="max-w-md mx-auto px-4 h-16 flex items-center gap-3">
@@ -366,6 +487,20 @@ function App(){
       </header>
 
       <main className="max-w-md mx-auto px-4">
+
+        {/* 골프장 입력란 */}
+        <div className="flex items-center gap-3 py-4 mt-2" style={{borderBottom:"1px solid var(--line)"}}>
+          <span className="flex items-center gap-1.5 text-[13px] font-bold shrink-0" style={{color:"var(--ink-soft)"}}>
+            <IconMapPin size={16}/> 골프장
+          </span>
+          <input 
+            value={courseName} 
+            onChange={e=>setCourseName(e.target.value)} 
+            placeholder="예: 킹스데일 GC"
+            className="grow bg-transparent font-bold text-[15px] outline-none text-right"
+            style={{color:"var(--ink)"}} 
+          />
+        </div>
 
         {/* 인원 */}
         <div className="flex items-center gap-3 py-4">
@@ -467,7 +602,7 @@ function App(){
           )}
         </section>
 
-        {/* 누적 */}
+        {/* 누적 기록 및 내보내기 */}
         <section className="rounded-2xl mt-4 p-4" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
           <div className="flex items-center gap-2 mb-1">
             <span className="font-bold text-[15px]">누적 {log.length}홀</span>
@@ -478,6 +613,7 @@ function App(){
               className="flex items-center gap-1 text-[12px] font-bold px-2.5 py-1.5 rounded-lg"
               style={{background:"var(--chip)", color:"var(--ink)"}}><IconRotate size={14}/> 초기화</button>
           </div>
+          
           {log.length === 0 ? (
             <p className="text-[13px] py-2" style={{color:"var(--ink-soft)"}}>홀을 저장하면 여기에 쌓입니다.</p>
           ) : (
@@ -496,7 +632,7 @@ function App(){
               </div>
 
               <button onClick={()=>setOpenLog(v=>!v)} className="w-full flex items-center gap-2 pt-4 pb-1 text-left">
-                <span className="font-bold text-[14px]">홀별 기록</span>
+                <span className="font-bold text-[14px]">홀별 상세 기록</span>
                 <span className="text-[12px]" style={{color:"var(--ink-soft)"}}>타수 · 점수 · 패자</span>
                 <span className="ml-auto transition-transform" style={{color:"var(--ink-soft)", transform:openLog?"rotate(180deg)":"none"}}>
                   <IconChev size={18}/>
@@ -549,26 +685,24 @@ function App(){
                   </p>
                 </div>
               )}
+
+              {/* 스코어카드 저장 및 공유 버튼 구역 */}
+              <div className="flex gap-2 pt-4 mt-4" style={{borderTop:"1px solid var(--line)"}}>
+                <button onClick={()=>handleExport('download')} className="grow h-12 flex items-center justify-center gap-1.5 rounded-xl text-[14px] font-extrabold text-white active:scale-95 transition-transform" style={{backgroundColor: "var(--turf-deep)"}}>
+                  <IconDownload size={18}/> 스코어카드 저장
+                </button>
+                <button onClick={()=>handleExport('share')} className="grow h-12 flex items-center justify-center gap-1.5 rounded-xl text-[14px] font-extrabold text-white active:scale-95 transition-transform" style={{backgroundColor: "#3B82F6"}}>
+                  <IconShare size={18}/> 결과 공유
+                </button>
+              </div>
+
             </>
           )}
         </section>
 
-        {/* 검증 */}
-        <section className="mt-4 mb-6 rounded-2xl p-4" style={{border:"1px dashed var(--line)"}}>
-          <div className="text-[13px] font-bold mb-1">로직 검증</div>
-          <p className="text-[12px] leading-snug mb-3" style={{color:"var(--ink-soft)"}}>
-            3인 예시(A→B, A→C, B→C 각 -1타)를 불러옵니다. 내장 검사 결과: 케이스1 {SELFTEST.t1?"통과":"실패"} · 케이스2 {SELFTEST.t2?"통과":"실패"}
-          </p>
-          <div className="flex gap-2">
-            <button onClick={()=>loadCase(1)} className="grow h-11 rounded-xl text-[13px] font-bold"
-                    style={{background:"var(--chip)", color:"var(--ink)"}}>케이스 1 · 0/1/2</button>
-            <button onClick={()=>loadCase(2)} className="grow h-11 rounded-xl text-[13px] font-bold"
-                    style={{background:"var(--chip)", color:"var(--ink)"}}>케이스 2 · 0/1/1</button>
-          </div>
-        </section>
       </main>
 
-      {/* 결과 바 */}
+      {/* 하단 플로팅 결과 바 */}
       <div className="fixed bottom-0 left-0 right-0 z-30" style={{background:"var(--paper)", borderTop:"1px solid var(--line)"}}>
         <div className="max-w-md mx-auto px-4 pt-2.5" style={{paddingBottom:"calc(12px + env(safe-area-inset-bottom))"}}>
           <HoleStrip log={log} hole={hole} live={result.finalLosers} onPick={jumpToHole} stripRef={stripRef} />
@@ -605,7 +739,7 @@ function App(){
           <button onClick={()=>{ if(hole>18){ setOpenLog(true); window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"}); } else saveHole(); }}
             className="mt-2 w-full h-14 rounded-2xl flex items-center justify-center gap-2 font-black text-[16px] active:scale-[.99] transition-transform"
             style={{background:"var(--turf)", color:"#fff"}}>
-            <IconSave size={20}/> {hole > 18 ? "라운드 종료 — 기록 확인" : hole === 18 ? "18번 홀 저장하고 마무리" : `${hole}번 홀 저장하고 다음 홀`}
+            <IconSave size={20}/> {hole > 18 ? "라운드 종료 — 스코어카드 저장/공유" : hole === 18 ? "18번 홀 저장하고 마무리" : `${hole}번 홀 저장하고 다음 홀`}
           </button>
         </div>
       </div>
