@@ -72,9 +72,9 @@
 const { useState, useMemo, useEffect, useRef } = React;
 
 /* ---------- icons (lucide-style, 2px stroke) ---------- */
-const Ico = ({d, size=22, fill="none", extra}) => (
+const Ico = ({d, size=22, fill="none", extra, className, style}) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor"
-       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className} style={style}>
     {d.map((p,i)=><path key={i} d={p} />)}
     {extra}
   </svg>
@@ -92,6 +92,9 @@ const IconSave   = p => <Ico {...p} d={["M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h
 const IconMapPin = p => <Ico {...p} d={["M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z", "M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"]} />;
 const IconDownload = p => <Ico {...p} d={["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4","M7 10l5 5 5-5","M12 15V3"]} />;
 const IconShare  = p => <Ico {...p} d={["M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8","M16 6l-4-4-4 4","M12 2v13"]} />;
+const IconHistory= p => <Ico {...p} d={["M12 8v4l3 3","M22 12A10 10 0 1 1 12 2a10 10 0 0 1 10 10z"]} />;
+const IconBack   = p => <Ico {...p} d={["M15 19l-7-7 7-7"]} />;
+const IconShield = p => <Ico {...p} d={["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"]} />;
 
 /* ---------- constants ---------- */
 const IDS = ["A","B","C","D"];
@@ -106,7 +109,7 @@ const SCORE_NAME = { "-3":"알바트로스","-2":"이글","-1":"버디","0":"파
 const scoreLabel = n => SCORE_NAME[String(n)] || (n>0 ? `+${n}타` : `${n}타`);
 const signed = n => (n>0?`+${n}`: n<0?`${n}`:"E");
 
-/* ---------- core logic: 1:1 상대 핸디캡 및 승점 타이브레이커 ---------- */
+/* ---------- core logic ---------- */
 function judgePair(x, y, gross, hcp) {
   const h = hcp[pairKey(x,y)] || { giver:null, strokes:1 };
   let netX = gross[x], netY = gross[y];
@@ -256,14 +259,13 @@ function HoleStrip({log, hole, live, onPick, stripRef}) {
   );
 }
 
-/* ---------- Scorecard Template (Hidden for Export) ---------- */
+/* ---------- Scorecard Template ---------- */
 function ScorecardTemplate({ log, ids, names, courseName, totals, exportRef }) {
   const [dateStr, setDateStr] = useState("");
   useEffect(() => {
-    // 렌더링 시점의 날짜/시간 생성
     const now = new Date();
     setDateStr(now.toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }));
-  }, [log]); // 로그가 업데이트 될 때마다 갱신
+  }, [log]); 
 
   const nameOf = id => names[id]?.trim() || id;
 
@@ -271,10 +273,9 @@ function ScorecardTemplate({ log, ids, names, courseName, totals, exportRef }) {
     <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>
       <div ref={exportRef} className="p-8 bg-white text-gray-900" style={{ width: '800px', fontFamily: "'Gothic A1', sans-serif" }}>
         
-        {/* 헤더 */}
         <div className="flex justify-between items-end border-b-4 pb-4 mb-6" style={{ borderColor: 'var(--turf-deep)' }}>
           <div>
-            <h1 className="text-[32px] font-black tracking-tight mb-2" style={{ color: 'var(--turf-deep)' }}>WAKOI SCORECARD</h1>
+            <h1 className="text-[32px] font-black tracking-tight mb-2" style={{ color: 'var(--turf-deep)' }}>GOLF SCORECARD</h1>
             <div className="text-[15px] font-bold text-gray-500 flex items-center gap-1.5">
               <IconMapPin size={16}/> {courseName || "기록된 골프장이 없습니다"}
             </div>
@@ -282,7 +283,6 @@ function ScorecardTemplate({ log, ids, names, courseName, totals, exportRef }) {
           <div className="text-right text-[15px] font-bold text-gray-500">{dateStr}</div>
         </div>
         
-        {/* 요약 (패배 횟수) */}
         <div className="flex gap-4 mb-8">
            {ids.map(id => (
              <div key={id} className="flex-1 rounded-2xl p-5 text-center" style={{ backgroundColor: 'var(--chip)' }}>
@@ -295,7 +295,6 @@ function ScorecardTemplate({ log, ids, names, courseName, totals, exportRef }) {
            ))}
         </div>
 
-        {/* 18홀 테이블 */}
         <table className="w-full text-center border-collapse text-[15px]">
           <thead>
             <tr className="text-white" style={{ backgroundColor: 'var(--turf-deep)' }}>
@@ -344,16 +343,117 @@ function ScorecardTemplate({ log, ids, names, courseName, totals, exportRef }) {
 
 /* ---------- app ---------- */
 function App(){
+  // 1. 앱 실행 시 기본 통계 처리 및 슈퍼어드민 생성
+  useEffect(() => {
+    const users = JSON.parse(localStorage.getItem('wakoi_users') || '{}');
+    if (!users['ADMIN']) {
+      users['ADMIN'] = { id: 'ADMIN', pw: 'dhkzhdl@1', nick: '슈퍼어드민', role: 'admin' };
+      localStorage.setItem('wakoi_users', JSON.stringify(users));
+    }
+
+    if (!sessionStorage.getItem('wakoi_visited_today')) {
+      sessionStorage.setItem('wakoi_visited_today', 'true');
+      const stats = JSON.parse(localStorage.getItem('wakoi_stats') || '{"dailyVisits":{}, "logins":{}}');
+      const today = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      stats.dailyVisits = stats.dailyVisits || {};
+      stats.dailyVisits[today] = (stats.dailyVisits[today] || 0) + 1;
+      localStorage.setItem('wakoi_stats', JSON.stringify(stats));
+    }
+  }, []);
+
+  // 인증 상태 및 게임 상태 관리
+  const [currentUser, setCurrentUser] = useState(() => JSON.parse(localStorage.getItem('wakoi_current_user')));
+  const [authView, setAuthView] = useState(currentUser ? 'main' : 'login'); 
+  const [authForm, setAuthForm] = useState({ id: '', pw: '', nick: '' });
+  const [authError, setAuthError] = useState("");
+
+  const [roundId, setRoundId] = useState(() => Date.now());
   const [count, setCount] = useState(4);
   const ids = useMemo(()=>IDS.slice(0,count), [count]);
-  const [names, setNames] = useState({A:"", B:"", C:"", D:""});
+  
+  // A플레이어 닉네임 상태 누수(오류) 해결을 위해 
+  // 로그인/로그아웃 시 게임 상태를 아예 깨끗하게 새로 세팅하는 함수
+  const [names, setNames] = useState({ A: currentUser?.nick || "", B: "", C: "", D: "" });
   const [courseName, setCourseName] = useState("");
   const [gross, setGross] = useState({A:0,B:0,C:0,D:0});
+  const [hole, setHole] = useState(1);
+  const [log, setLog] = useState([]);
   const [hcp, setHcp] = useState(()=>{
     const o={}; allPairs(IDS).forEach(([x,y])=>o[pairKey(x,y)]={giver:null,strokes:1}); return o;
   });
-  const [hole, setHole] = useState(1);
-  const [log, setLog] = useState([]);
+
+  // 상태 전체 초기화 함수
+  const resetGameForNewSession = (nick = "") => {
+    setLog([]);
+    setHole(1);
+    setGross({A:0, B:0, C:0, D:0});
+    setRoundId(Date.now());
+    setCourseName("");
+    setCount(4);
+    setNames({ A: nick, B: "", C: "", D: "" });
+    const newHcp = {};
+    allPairs(IDS).forEach(([x,y])=>newHcp[pairKey(x,y)]={giver:null,strokes:1});
+    setHcp(newHcp);
+  };
+
+  const handleAuth = (type) => {
+    setAuthError("");
+    const users = JSON.parse(localStorage.getItem('wakoi_users') || '{}');
+    const { id, pw, nick } = authForm;
+    const cleanId = id.trim();
+
+    if (!cleanId || !pw.trim()) return setAuthError("아이디와 비밀번호를 입력해주세요.");
+    
+    if (type === 'login') {
+      if (Object.prototype.hasOwnProperty.call(users, cleanId) && users[cleanId].pw === pw) {
+        setCurrentUser(users[cleanId]);
+        localStorage.setItem('wakoi_current_user', JSON.stringify(users[cleanId]));
+        setAuthView('main');
+        setAuthForm({ id: '', pw: '', nick: '' });
+        
+        // 로그인 성공 시 새 세션으로 게임 초기화 및 A플레이어 닉네임 설정
+        resetGameForNewSession(users[cleanId].nick);
+
+        const stats = JSON.parse(localStorage.getItem('wakoi_stats') || '{"dailyVisits":{}, "logins":{}}');
+        stats.logins = stats.logins || {};
+        stats.logins[cleanId] = (stats.logins[cleanId] || 0) + 1;
+        localStorage.setItem('wakoi_stats', JSON.stringify(stats));
+      } else {
+        setAuthError("아이디 또는 비밀번호가 일치하지 않습니다.");
+      }
+    } else { 
+      if (!/^\d{4}$/.test(pw)) return setAuthError("비밀번호는 숫자 4자리로 설정해주세요.");
+      if (Object.prototype.hasOwnProperty.call(users, cleanId)) {
+        return setAuthError("이미 존재하는 아이디입니다.");
+      }
+      
+      const newUser = { id: cleanId, pw, nick: nick.trim() || `${cleanId} 님`, role: 'user' };
+      users[cleanId] = newUser;
+      localStorage.setItem('wakoi_users', JSON.stringify(users));
+      setCurrentUser(newUser);
+      localStorage.setItem('wakoi_current_user', JSON.stringify(newUser));
+      setAuthView('main');
+      setAuthForm({ id: '', pw: '', nick: '' });
+
+      // 가입 성공 시 새 세션으로 게임 초기화 및 A플레이어 닉네임 설정
+      resetGameForNewSession(newUser.nick);
+
+      const stats = JSON.parse(localStorage.getItem('wakoi_stats') || '{"dailyVisits":{}, "logins":{}}');
+      stats.logins = stats.logins || {};
+      stats.logins[cleanId] = 1;
+      localStorage.setItem('wakoi_stats', JSON.stringify(stats));
+    }
+  };
+
+  const logout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem('wakoi_current_user');
+    setAuthView('login');
+    // 로그아웃 시 메모리에 남은 이전 게임 기록과 이전 사용자 이름 완벽 삭제
+    resetGameForNewSession(""); 
+  };
+
+
   const [openHcp, setOpenHcp] = useState(true);
   const [openDetail, setOpenDetail] = useState(false);
   const [openLog, setOpenLog] = useState(false);
@@ -362,7 +462,6 @@ function App(){
 
   const nameOf = id => names[id]?.trim() || id;
   const result = useMemo(()=>judgeHole(ids, gross, hcp), [ids, gross, hcp]);
-
   const activeHcpCount = allPairs(ids).filter(([x,y])=>hcp[pairKey(x,y)].giver).length;
 
   const setGrossFor = (id,v) => setGross(s=>({...s,[id]:v}));
@@ -398,7 +497,10 @@ function App(){
     setGross({A:0,B:0,C:0,D:0, ...last.gross});
   };
   
-  const resetAll = () => { setLog([]); setHole(1); setGross({A:0,B:0,C:0,D:0}); };
+  const resetAll = () => { 
+    setLog([]); setHole(1); setGross({A:0,B:0,C:0,D:0}); 
+    setRoundId(Date.now()); 
+  };
 
   const totals = useMemo(()=>{
     const t = Object.fromEntries(IDS.map(id=>[id,{pts:0,losses:0}]));
@@ -411,30 +513,42 @@ function App(){
     return t;
   }, [log]);
 
+  // 기록(History) 자동 저장 로직
+  useEffect(() => {
+    if (hole === 19 && currentUser) {
+      const storageKey = `wakoi_hist_${currentUser.id}`;
+      const hList = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const newRecord = {
+        roundId,
+        date: new Date().getTime(),
+        courseName,
+        ids, names, log, totals
+      };
+      const existingIdx = hList.findIndex(h => h.roundId === roundId);
+      if (existingIdx >= 0) hList[existingIdx] = newRecord;
+      else hList.unshift(newRecord);
+      localStorage.setItem(storageKey, JSON.stringify(hList));
+    }
+  }, [hole, currentUser, roundId, courseName, ids, names, log, totals]);
+
   useEffect(()=>{
+    if (authView !== 'main') return;
     const el = stripRef.current?.querySelector(`[data-hole="${hole}"]`);
     if (el) el.scrollIntoView({behavior:"smooth", block:"nearest", inline:"center"});
-  }, [hole]);
+  }, [hole, authView]);
 
-  // 이미지 생성 및 공유/다운로드 로직
+  // 내보내기/공유
   const handleExport = async (mode) => {
     if (!exportRef.current) return;
     try {
-      // html2canvas 실행
-      const canvas = await window.html2canvas(exportRef.current, { 
-        scale: 2, 
-        useCORS: true, 
-        backgroundColor: '#ffffff' 
-      });
+      const canvas = await window.html2canvas(exportRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
       const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
       const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,'');
       const fileName = `WAKOI_스코어카드_${dateStr}.jpg`;
 
       if (mode === 'download') {
         const link = document.createElement('a');
-        link.download = fileName;
-        link.href = dataUrl;
-        link.click();
+        link.download = fileName; link.href = dataUrl; link.click();
       } else if (mode === 'share') {
         canvas.toBlob(async (blob) => {
           const file = new File([blob], fileName, { type: 'image/jpeg' });
@@ -445,24 +559,177 @@ function App(){
                 text: `${courseName ? courseName : '골프장'} 라운딩 결과입니다.`,
                 files: [file]
               });
-            } catch(err) {
-              console.log('Share canceled or failed', err);
-            }
+            } catch(err) { console.log('Share canceled or failed', err); }
           } else {
             alert("현재 브라우저/기기에서는 직접 공유를 지원하지 않아 이미지 다운로드로 대체합니다.");
-            const link = document.createElement('a');
-            link.download = fileName;
-            link.href = dataUrl;
-            link.click();
+            const link = document.createElement('a'); link.download = fileName; link.href = dataUrl; link.click();
           }
         }, 'image/jpeg', 0.9);
       }
     } catch (error) {
-      console.error(error);
-      alert("이미지 생성 중 오류가 발생했습니다.");
+      console.error(error); alert("이미지 생성 중 오류가 발생했습니다.");
     }
   };
 
+  /* ---------------- 화면 렌더링 (인증 / 히스토리 / 관리자 대시보드 / 메인) ---------------- */
+  
+  if (authView === 'login' || authView === 'signup') {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4" style={{background:"var(--paper)"}}>
+        <div className="w-full max-w-sm p-6 rounded-3xl" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
+          <div className="text-center mb-6">
+            <IconFlag size={42} className="mx-auto mb-2" style={{color:"var(--turf-deep)"}}/>
+            <h1 className="text-[22px] font-black tracking-tight" style={{color:"var(--ink)"}}>GOLF 승부 계산기</h1>
+            <p className="text-[12px] font-bold mt-1" style={{color:"var(--ink-soft)"}}>라운딩 독박 점수를 완벽하게 계산하세요</p>
+          </div>
+          
+          <div className="flex mb-5 p-1 rounded-xl" style={{background:"var(--chip)"}}>
+            <button onClick={()=>{setAuthView('login'); setAuthError('');}} className={`flex-1 py-2 text-[14px] font-bold rounded-lg transition-colors ${authView==='login'?'bg-white shadow-sm':'text-gray-500'}`}>로그인</button>
+            <button onClick={()=>{setAuthView('signup'); setAuthError('');}} className={`flex-1 py-2 text-[14px] font-bold rounded-lg transition-colors ${authView==='signup'?'bg-white shadow-sm':'text-gray-500'}`}>회원가입</button>
+          </div>
+
+          <div className="space-y-3">
+            <input 
+              value={authForm.id} 
+              onChange={e=>setAuthForm({...authForm, id:e.target.value})} 
+              placeholder="아이디" 
+              className="w-full px-4 py-3.5 rounded-xl outline-none font-bold text-[15px]" 
+              style={{background:"var(--paper)", color:"var(--ink)"}}
+            />
+            {/* type="password" 이지만 영문 입력도 가능하게 유지(관리자 계정을 위해) */}
+            <input 
+              type="password" 
+              value={authForm.pw} 
+              onChange={e=>setAuthForm({...authForm, pw:e.target.value})} 
+              placeholder={authView === 'signup' ? "비밀번호 (숫자 4자리)" : "비밀번호"} 
+              className="w-full px-4 py-3.5 rounded-xl outline-none font-bold num text-[15px]" 
+              style={{background:"var(--paper)", color:"var(--ink)"}}
+            />
+            
+            {authView === 'signup' && (
+              <input value={authForm.nick} onChange={e=>setAuthForm({...authForm, nick:e.target.value})} placeholder="스코어카드에 표시될 별명 (선택)" className="w-full px-4 py-3.5 rounded-xl outline-none font-bold text-[15px]" style={{background:"var(--paper)", color:"var(--ink)"}}/>
+            )}
+            
+            {authError && <div className="text-[12px] font-bold px-1" style={{color:"var(--flag)"}}>{authError}</div>}
+            
+            <button onClick={()=>handleAuth(authView)} className="w-full py-4 mt-2 rounded-xl font-black text-[15px] text-white active:scale-[.98] transition-transform" style={{background:"var(--turf-deep)"}}>
+              {authView === 'login' ? '로그인' : '간편 회원가입'}
+            </button>
+            
+            <button onClick={()=>{
+              setAuthView('main'); 
+              setAuthError('');
+              resetGameForNewSession(""); // 비회원 클릭시에도 이전 정보 깔끔하게 지우기
+            }} className="w-full py-3 mt-1 rounded-xl font-bold text-[13px] active:scale-[.98] transition-transform" style={{background:"var(--chip)", color:"var(--ink-soft)"}}>
+              비회원으로 바로 시작하기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 관리자 전용 대시보드
+  if (authView === 'admin') {
+    const allUsers = JSON.parse(localStorage.getItem('wakoi_users') || '{}');
+    const allStats = JSON.parse(localStorage.getItem('wakoi_stats') || '{"dailyVisits":{}, "logins":{}}');
+    
+    // 일별 방문자 배열(최신순)
+    const dailyArr = Object.entries(allStats.dailyVisits || {}).sort((a,b) => b[0].localeCompare(a[0]));
+    // 유저 배열(가입 아이디순)
+    const userArr = Object.values(allUsers).filter(u => u.id !== 'ADMIN'); 
+
+    return (
+      <div className="min-h-screen pb-12" style={{background:"var(--paper)"}}>
+        <header className="sticky top-0 z-20" style={{background:"var(--turf-deep)", color:"#F3F7F1"}}>
+          <div className="max-w-md mx-auto px-4 h-16 flex items-center gap-3">
+            <button onClick={()=>setAuthView('main')} className="p-2 -ml-2 rounded-full active:bg-white/10 transition-colors">
+              <IconBack size={24}/>
+            </button>
+            <div className="font-black text-[17px] grow text-center pr-8">슈퍼 관리자 통계</div>
+          </div>
+        </header>
+
+        <main className="max-w-md mx-auto px-4 py-6 space-y-5">
+          {/* 일별 조회(접속) 횟수 */}
+          <div className="p-5 rounded-2xl" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
+            <h2 className="font-black text-[16px] mb-3 flex items-center gap-2"><IconMapPin size={18}/> 일별 조회수(접속 통계)</h2>
+            <div className="space-y-2">
+              {dailyArr.length > 0 ? dailyArr.map(([date, count]) => (
+                <div key={date} className="flex justify-between font-bold text-[14px] p-2 rounded-lg" style={{background:"var(--chip)"}}>
+                  <span style={{color:"var(--ink-soft)"}}>{date}</span>
+                  <span className="num" style={{color:"var(--turf-deep)"}}>{count}회</span>
+                </div>
+              )) : <div className="text-[12px] text-gray-400">기록이 없습니다.</div>}
+            </div>
+          </div>
+
+          {/* 가입된 회원 목록 및 로그인 횟수 */}
+          <div className="p-5 rounded-2xl" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
+            <h2 className="font-black text-[16px] mb-3 flex items-center gap-2"><IconUsers size={18}/> 가입 회원 현황 (총 {userArr.length}명)</h2>
+            <div className="space-y-2">
+              <div className="flex text-[11px] font-bold pb-2" style={{color:"var(--ink-soft)", borderBottom:"1px solid var(--line)"}}>
+                <span className="w-1/3">아이디</span>
+                <span className="w-1/3 text-center">설정된 별명</span>
+                <span className="w-1/3 text-right">총 로그인 횟수</span>
+              </div>
+              {userArr.length > 0 ? userArr.map(u => (
+                <div key={u.id} className="flex items-center text-[13px] font-bold p-2 rounded-lg" style={{background:"var(--chip)"}}>
+                  <span className="w-1/3 truncate" style={{color:"var(--ink)"}}>{u.id}</span>
+                  <span className="w-1/3 text-center truncate" style={{color:"var(--ink-soft)"}}>{u.nick}</span>
+                  <span className="w-1/3 text-right num" style={{color:"var(--turf-deep)"}}>{allStats.logins?.[u.id] || 0}회</span>
+                </div>
+              )) : <div className="text-[12px] text-gray-400">가입된 회원이 없습니다.</div>}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // 개인 라운딩 기록 화면
+  if (authView === 'history') {
+    const histories = JSON.parse(localStorage.getItem(`wakoi_hist_${currentUser?.id}`) || '[]');
+    return (
+      <div className="min-h-screen pb-12" style={{background:"var(--paper)"}}>
+        <header className="sticky top-0 z-20" style={{background:"var(--turf-deep)", color:"#F3F7F1"}}>
+          <div className="max-w-md mx-auto px-4 h-16 flex items-center gap-3">
+            <button onClick={()=>setAuthView('main')} className="p-2 -ml-2 rounded-full active:bg-white/10 transition-colors">
+              <IconBack size={24}/>
+            </button>
+            <div className="font-black text-[17px] grow text-center pr-8">내 라운딩 기록 ({histories.length})</div>
+          </div>
+        </header>
+        <main className="max-w-md mx-auto px-4 py-6 space-y-4">
+          {histories.length === 0 ? (
+            <div className="text-center py-16 font-bold" style={{color:"var(--ink-soft)"}}>저장된 기록이 없습니다.</div>
+          ) : (
+            histories.map((h, idx) => (
+              <div key={idx} className="p-4 rounded-2xl" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
+                <div className="flex justify-between items-center mb-4 pb-3" style={{borderBottom:"1px solid var(--line)"}}>
+                  <div className="font-bold text-[15px]"><IconMapPin size={16} className="inline mr-1 text-gray-400"/> {h.courseName || '골프장 미지정'}</div>
+                  <div className="text-[12px] font-bold num" style={{color:"var(--ink-soft)"}}>{new Date(h.date).toLocaleDateString()}</div>
+                </div>
+                <div className="flex gap-2">
+                  {h.ids.map(id => (
+                    <div key={id} className="flex-1 rounded-xl py-2 px-1 text-center" style={{background:"var(--chip)"}}>
+                      <div className="font-bold text-[12px] truncate px-1" style={{color:"var(--ink)"}}>{h.names[id] || id}</div>
+                      <div className="num text-[18px] font-black mt-1 leading-none" style={{color: h.totals[id].pts>0?"var(--turf)":h.totals[id].pts<0?"var(--flag)":"var(--ink)"}}>
+                        {signed(h.totals[id].pts)}
+                      </div>
+                      <div className="text-[10px] mt-1" style={{color:"var(--ink-soft)"}}>패배 {h.totals[id].losses}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </main>
+      </div>
+    );
+  }
+
+  // 기본 메인 앱 화면
   const verdictColor = result.finalLosers.length > 0 ? "var(--flag)" : "var(--turf-deep)";
 
   return (
@@ -477,9 +744,25 @@ function App(){
           <IconFlag size={22}/>
           <div className="grow">
             <div className="font-black text-[17px] leading-tight">홀 승부 계산기 - WAKOI</div>
-            <div className="text-[11px]" style={{color:"#9EC4AC"}}>1:1 상대 핸디캡 · {ids.length}인 · 매치 {allPairs(ids).length}개</div>
+            <div className="text-[11px]" style={{color:"#9EC4AC"}}>
+              {currentUser ? `${currentUser.nick} 님` : '비회원'} · 1:1 핸디캡 · {ids.length}인
+            </div>
           </div>
-          <div className="num text-right leading-none">
+
+          {/* 슈퍼 관리자 로그인 시 통계 대시보드 버튼 렌더링 */}
+          {currentUser && currentUser.role === 'admin' && (
+            <button onClick={()=>setAuthView('admin')} className="w-9 h-9 flex items-center justify-center rounded-full bg-white/20 active:bg-white/30 transition-colors mr-1">
+              <IconShield size={18} />
+            </button>
+          )}
+
+          {currentUser && (
+            <button onClick={()=>setAuthView('history')} className="w-10 h-10 flex items-center justify-center rounded-full active:bg-white/10 transition-colors">
+              <IconHistory size={20}/>
+            </button>
+          )}
+
+          <div className="num text-right leading-none pl-2 border-l border-white/20">
             <div className="text-[10px]" style={{color:"#9EC4AC"}}>HOLE</div>
             <div className="text-[26px] font-extrabold">{hole > 18 ? "END" : hole}</div>
           </div>
@@ -488,8 +771,8 @@ function App(){
 
       <main className="max-w-md mx-auto px-4">
 
-        {/* 골프장 입력란 */}
-        <div className="flex items-center gap-3 py-4 mt-2" style={{borderBottom:"1px solid var(--line)"}}>
+        {/* 골프장 입력 및 로그아웃 */}
+        <div className="flex items-center gap-2 py-4 mt-1" style={{borderBottom:"1px solid var(--line)"}}>
           <span className="flex items-center gap-1.5 text-[13px] font-bold shrink-0" style={{color:"var(--ink-soft)"}}>
             <IconMapPin size={16}/> 골프장
           </span>
@@ -497,9 +780,18 @@ function App(){
             value={courseName} 
             onChange={e=>setCourseName(e.target.value)} 
             placeholder="예: 킹스데일 GC"
-            className="grow bg-transparent font-bold text-[15px] outline-none text-right"
+            className="grow bg-transparent font-bold text-[15px] outline-none text-right px-2"
             style={{color:"var(--ink)"}} 
           />
+          {currentUser ? (
+            <button onClick={logout} className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg shrink-0 transition-colors" style={{background:"var(--chip)", color:"var(--ink-soft)"}}>
+              로그아웃
+            </button>
+          ) : (
+            <button onClick={()=>setAuthView('login')} className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg shrink-0 transition-colors" style={{background:"var(--turf)", color:"#fff"}}>
+              로그인
+            </button>
+          )}
         </div>
 
         {/* 인원 */}
@@ -605,7 +897,7 @@ function App(){
         {/* 누적 기록 및 내보내기 */}
         <section className="rounded-2xl mt-4 p-4" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
           <div className="flex items-center gap-2 mb-1">
-            <span className="font-bold text-[15px]">누적 {log.length}홀</span>
+            <span className="font-bold text-[15px]">현재 {log.length}홀 누적</span>
             <button onClick={undo} disabled={!log.length}
               className="ml-auto flex items-center gap-1 text-[12px] font-bold px-2.5 py-1.5 rounded-lg disabled:opacity-30"
               style={{background:"var(--chip)", color:"var(--ink)"}}><IconUndo size={14}/> 되돌리기</button>
@@ -615,7 +907,7 @@ function App(){
           </div>
           
           {log.length === 0 ? (
-            <p className="text-[13px] py-2" style={{color:"var(--ink-soft)"}}>홀을 저장하면 여기에 쌓입니다.</p>
+            <p className="text-[13px] py-2" style={{color:"var(--ink-soft)"}}>홀을 저장하면 기록이 실시간으로 쌓입니다.</p>
           ) : (
             <>
               <div className="flex gap-2 pt-2">
@@ -686,7 +978,6 @@ function App(){
                 </div>
               )}
 
-              {/* 스코어카드 저장 및 공유 버튼 구역 */}
               <div className="flex gap-2 pt-4 mt-4" style={{borderTop:"1px solid var(--line)"}}>
                 <button onClick={()=>handleExport('download')} className="grow h-12 flex items-center justify-center gap-1.5 rounded-xl text-[14px] font-extrabold text-white active:scale-95 transition-transform" style={{backgroundColor: "var(--turf-deep)"}}>
                   <IconDownload size={18}/> 스코어카드 저장
