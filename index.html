@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
 <title>홀 승부 계산기 - WAKOI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -56,7 +56,7 @@
     letter-spacing: -0.02em; /* 전체 자간을 살짝 좁혀서 깔끔하게 */
   }
   .num{font-family:'Archivo','Gothic A1',sans-serif;font-variant-numeric:tabular-nums; letter-spacing: -0.01em;}
-  button{font-family:inherit;}
+  button, select {font-family:inherit; touch-action: manipulation;} /* 더블 탭 확대 방지 */
   button:focus-visible,input:focus-visible{outline:3px solid var(--turf);outline-offset:2px;}
   input{font-family:inherit;}
   .noscroll::-webkit-scrollbar{display:none;}
@@ -98,6 +98,7 @@ const IconBack   = p => <Ico {...p} d={["M15 19l-7-7 7-7"]} />;
 const IconShield = p => <Ico {...p} d={["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"]} />;
 const IconTrash  = p => <Ico {...p} d={["M3 6h18","M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2","M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6","M10 11v6","M14 11v6"]} />;
 const IconAlert  = p => <Ico {...p} d={["M12 9v4","M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z","M12 17h.01"]} />;
+const IconChevDown = p => <Ico {...p} d={["m6 9 6 6 6-6"]} />;
 
 /* ---------- constants ---------- */
 const IDS = ["A","B","C","D"];
@@ -110,8 +111,6 @@ const allPairs = (ids) => {
 };
 const SCORE_NAME = { "-3":"알바트로스","-2":"이글","-1":"버디","0":"파","1":"보기","2":"더블보기","3":"트리플보기" };
 const scoreLabel = n => SCORE_NAME[String(n)] || (n>0 ? `+${n}타` : `${n}타`);
-
-// 파(E) 표기를 0으로 변경
 const signed = n => (n>0 ? `+${n}` : n<0 ? `${n}` : "0"); 
 
 /* ---------- core logic ---------- */
@@ -175,18 +174,35 @@ function Chip({id, size=34}) {
 
 function Stepper({value, onChange, min=-4, max=8}) {
   const btn = "h-16 w-16 rounded-2xl flex items-center justify-center active:scale-95 transition-transform disabled:opacity-30";
+  const options = [];
+  for(let i=min; i<=max; i++) options.push(i);
+
   return (
     <div className="flex items-center gap-2">
       <button className={btn} style={{background:"var(--chip)", color:"var(--ink)"}}
               disabled={value<=min} onClick={()=>onChange(value-1)} aria-label="한 타 줄이기">
         <IconMinus size={26}/>
       </button>
-      <div className="w-[68px] text-center">
-        <div className="num font-extrabold leading-none" style={{fontSize:34, color: value>0?"var(--ink)":value<0?"var(--turf)":"var(--ink)"}}>
-          {signed(value)}
+      
+      <div className="w-[68px] text-center relative flex flex-col items-center justify-center cursor-pointer">
+        {/* 드롭다운 방식 스코어 입력 추가 */}
+        <select 
+          value={value} 
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+        >
+          {options.map(o => <option key={o} value={o}>{signed(o)} ({scoreLabel(o)})</option>)}
+        </select>
+        
+        <div className="flex items-center justify-center gap-1">
+          <div className="num font-extrabold leading-none" style={{fontSize:34, color: value>0?"var(--ink)":value<0?"var(--turf)":"var(--ink)"}}>
+            {signed(value)}
+          </div>
+          <IconChevDown size={14} className="opacity-40 -mr-3" />
         </div>
         <div className="text-[13px] mt-1 font-semibold" style={{color:"var(--ink-soft)"}}>{scoreLabel(value)}</div>
       </div>
+      
       <button className={btn} style={{background:"var(--chip)", color:"var(--ink)"}}
               disabled={value>=max} onClick={()=>onChange(value+1)} aria-label="한 타 늘리기">
         <IconPlus size={26}/>
@@ -323,7 +339,6 @@ function ScorecardTemplate({ log, ids, names, courseName, totals, exportRef }) {
                   <tr key={hole} className="border-b last:border-b-0" style={{ borderColor: 'var(--line)' }}>
                     <td className="py-3.5 bg-gray-50 border-r text-center align-middle" style={{ borderColor: 'var(--line)', color:'var(--ink-soft)' }}>
                       <div className="font-extrabold text-[24px] num leading-none">{hole}</div>
-                      {/* 스코어카드 핸디캡 적용 뱃지 */}
                       {hcpActive && (
                         <div className="inline-block mt-1.5 px-2 py-0.5 text-[14px] font-bold rounded" style={{backgroundColor:"#E0F2FE", color:"#0284C7"}}>핸디 적용</div>
                       )}
@@ -349,6 +364,16 @@ function ScorecardTemplate({ log, ids, names, courseName, totals, exportRef }) {
                   </tr>
                 );
               })}
+              {/* 스코어 카드 최종 합산 Row */}
+              <tr className="border-t-[4px] font-bold" style={{ borderColor: 'var(--turf-deep)', backgroundColor: '#f9f9f9' }}>
+                <td className="py-4 border-r text-center align-middle" style={{ borderColor: 'var(--line)', color:'var(--ink)' }}>총 타수</td>
+                {ids.map(id => (
+                  <td key={id} className="py-4 border-r" style={{ borderColor: 'var(--line)' }}>
+                    <span className="font-extrabold text-[26px] num text-gray-800 tracking-tight">{signed(totals[id].grossStrokes)}</span>
+                  </td>
+                ))}
+                <td className="py-4 text-center text-gray-400">-</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -513,13 +538,15 @@ function App(){
     setRoundId(Date.now()); 
   };
 
+  // 누적 데이터에 총 타수(grossStrokes) 합산 로직 추가
   const totals = useMemo(()=>{
-    const t = Object.fromEntries(IDS.map(id=>[id,{pts:0,losses:0}]));
+    const t = Object.fromEntries(IDS.map(id=>[id,{pts:0,losses:0, grossStrokes:0}]));
     log.forEach(r => { 
       Object.entries(r.pts).forEach(([id,p])=>t[id].pts+=p); 
       if(r.finalLosers) {
         r.finalLosers.forEach(id => t[id].losses++);
       }
+      Object.entries(r.gross).forEach(([id,g])=>t[id].grossStrokes+=g); // 누적 타수 계산
     });
     return t;
   }, [log]);
@@ -751,27 +778,29 @@ function App(){
                   {isOpen && (
                     <div className="px-4 pb-4" style={{borderTop:"1px solid var(--line)"}}>
                       <div className="flex gap-2 pt-4">
-                        {h.ids.map(id => (
-                          <div key={id} className="flex-1 rounded-xl py-3 px-1 text-center" style={{background:"var(--chip)"}}>
-                            <div className="font-bold text-[16px] tracking-tight truncate px-1">{h.names[id] || id}</div>
-                            <div className="num text-[23px] font-black mt-1 leading-none"
-                                 style={{color: h.totals[id].pts>0?"var(--turf)":h.totals[id].pts<0?"var(--flag)":"var(--ink)"}}>
-                              {signed(h.totals[id].pts)}
+                        {h.ids.map(id => {
+                          const grossSum = h.totals[id].grossStrokes ?? h.log.reduce((acc, cur) => acc + (cur.gross[id] || 0), 0);
+                          return (
+                            <div key={id} className="flex-1 rounded-xl py-3 px-1 text-center" style={{background:"var(--chip)"}}>
+                              <div className="font-bold text-[16px] tracking-tight truncate px-1">{h.names[id] || id}</div>
+                              <div className="num text-[23px] font-black mt-1 leading-none"
+                                   style={{color: h.totals[id].pts>0?"var(--turf)":h.totals[id].pts<0?"var(--flag)":"var(--ink)"}}>
+                                {signed(h.totals[id].pts)}점
+                              </div>
+                              <div className="text-[14px] mt-1 font-semibold tracking-tight" style={{color:"var(--ink-soft)"}}>패배 {h.totals[id].losses}</div>
+                              <div className="text-[14px] mt-1 font-bold tracking-tight num" style={{color:"var(--ink)"}}>합 {signed(grossSum)}타</div>
                             </div>
-                            <div className="text-[14px] mt-1 font-semibold tracking-tight" style={{color:"var(--ink-soft)"}}>패배 {h.totals[id].losses}</div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
 
                       <div className="text-[15px] font-bold mt-5 mb-2 tracking-tight" style={{color:"var(--ink-soft)"}}>홀별 스코어</div>
                       <div className="overflow-x-auto noscroll rounded-xl" style={{border:"1px solid var(--line)"}}>
-                        {/* 내 라운딩 기록에도 패자 열을 추가하기 위해 minWidth 확장 */}
                         <table className="w-full text-center" style={{minWidth: 120 + h.ids.length*72}}>
                           <thead>
                             <tr className="text-[15px] font-bold tracking-tight" style={{background:"var(--chip)", color:"var(--ink-soft)"}}>
                               <th className="py-2.5 w-12">홀</th>
                               {h.ids.map(id => <th key={id} className="py-2.5">{h.names[id] || id}</th>)}
-                              {/* 패자 열 헤더 추가 */}
                               <th className="py-2.5 w-20">패자</th>
                             </tr>
                           </thead>
@@ -782,7 +811,6 @@ function App(){
                                 <tr key={rec.hole} style={{borderTop:"1px solid var(--line)"}}>
                                   <td className="py-2.5 text-center">
                                     <div className="num font-bold text-[16px] leading-none">{rec.hole}</div>
-                                    {/* 내 라운딩 기록 핸디캡 적용 뱃지 */}
                                     {hcpActive && (
                                       <div className="inline-block mt-1 px-1.5 text-[10px] font-bold rounded" style={{backgroundColor:"#E0F2FE", color:"#0284C7"}}>핸디</div>
                                     )}
@@ -799,7 +827,6 @@ function App(){
                                       </td>
                                     );
                                   })}
-                                  {/* 내 라운딩 기록 패자 표시 */}
                                   <td className="py-2.5 text-[13px] font-bold tracking-tight" style={{ color: rec.finalLosers?.length > 0 ? 'var(--flag)' : 'var(--ink-soft)' }}>
                                     {rec.finalLosers?.length > 0 ? rec.finalLosers.map(id => h.names[id] || id).join(', ') : '-'}
                                   </td>
@@ -1029,9 +1056,13 @@ function App(){
                     <Chip id={id} size={24}/>
                     <div className="num text-[23px] font-extrabold mt-1.5 leading-none"
                          style={{color: totals[id].pts>0?"var(--turf)":totals[id].pts<0?"var(--flag)":"var(--ink)"}}>
-                      {signed(totals[id].pts)}
+                      {signed(totals[id].pts)}점
                     </div>
                     <div className="text-[13px] font-semibold tracking-tight mt-1" style={{color:"var(--ink-soft)"}}>패배 {totals[id].losses}</div>
+                    {/* 누적 합산 타수 표시 추가 */}
+                    <div className="text-[14px] font-bold tracking-tight mt-1 num" style={{color:"var(--ink)"}}>
+                      누적 {signed(totals[id].grossStrokes)}타
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1057,7 +1088,6 @@ function App(){
                       style={{borderTop:"1px solid var(--line)"}}>
                       <div className="w-8 flex flex-col items-center justify-center shrink-0">
                         <span className="num font-extrabold text-[17px] leading-none">{rec.hole}</span>
-                        {/* 현재 게임 화면의 홀별 상세기록에도 일관성 있게 뱃지 추가 */}
                         {hasHandicap(rec.hcp) && (
                           <span className="text-[10px] font-bold mt-1 px-1 rounded" style={{backgroundColor:"#E0F2FE", color:"#0284C7"}}>핸디</span>
                         )}
@@ -1072,7 +1102,7 @@ function App(){
                               {inRound ? signed(g) : "·"}
                             </span>
                             {inRound && (
-                              <span className="num text-[12px] font-bold mt-0.5"
+                              <span className="num text-[12px] font-bold mt-0.5 block"
                                     style={{color: p>0?"var(--turf)":p<0?"var(--flag)":"var(--ink-soft)"}}>
                                 {signed(p)}
                               </span>
@@ -1091,6 +1121,18 @@ function App(){
                       </span>
                     </button>
                   ))}
+                  
+                  {/* 상세 기록 하단 누적 타수 합계 (새로 추가됨) */}
+                  <div className="flex items-center gap-2 py-3 mt-1 text-center font-bold" style={{borderTop:"2px solid var(--line)", background:"var(--chip)", borderRadius:"0 0 12px 12px"}}>
+                    <span className="w-8 shrink-0 text-[13px]" style={{color:"var(--ink-soft)"}}>합계</span>
+                    {ids.map(id => (
+                      <span key={id} className="grow num text-[17px]" style={{color: totals[id].grossStrokes !== 0 ? "var(--ink)" : "var(--ink-soft)"}}>
+                        {signed(totals[id].grossStrokes)}
+                      </span>
+                    ))}
+                    <span className="w-[54px]"></span>
+                  </div>
+
                   <p className="text-[13px] font-medium tracking-tight pt-2.5" style={{color:"var(--ink-soft)"}}>
                     줄을 누르면 그 홀로 돌아가 타수와 핸디캡을 고칠 수 있습니다. 다시 저장하면 덮어씁니다.
                   </p>
