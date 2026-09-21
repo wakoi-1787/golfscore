@@ -53,10 +53,10 @@
     font-family:'Gothic A1',system-ui,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
     -webkit-text-size-adjust:100%;
     -webkit-tap-highlight-color:transparent;
-    letter-spacing: -0.02em; /* 전체 자간을 살짝 좁혀서 깔끔하게 */
+    letter-spacing: -0.02em;
   }
   .num{font-family:'Archivo','Gothic A1',sans-serif;font-variant-numeric:tabular-nums; letter-spacing: -0.01em;}
-  button, select {font-family:inherit; touch-action: manipulation;} /* 더블 탭 확대 방지 */
+  button, select {font-family:inherit; touch-action: manipulation;}
   button:focus-visible,input:focus-visible{outline:3px solid var(--turf);outline-offset:2px;}
   input{font-family:inherit;}
   .noscroll::-webkit-scrollbar{display:none;}
@@ -89,7 +89,7 @@ const IconRotate = p => <Ico {...p} d={["M3 12a9 9 0 1 0 3-6.7L3 8","M3 3v5h5"]}
 const IconUndo   = p => <Ico {...p} d={["M9 14 4 9l5-5","M4 9h11a5 5 0 0 1 0 10h-4"]} />;
 const IconSwords = p => <Ico {...p} d={["M14.5 17.5 21 11l-1-4-4-1-6.5 6.5","M3 21l4.5-4.5","M6.5 6.5 3 3l1 4 4 1","M13 13l-6 6"]} />;
 const IconUsers  = p => <Ico {...p} d={["M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2","M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8","M22 20v-2a4 4 0 0 0-3-3.9","M16 3.1a4 4 0 0 1 0 7.8"]} />;
-const IconSave   = p => <Ico {...p} d={["M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z","M17 21v-8H7v8","M7 3v5h8"]} />;
+const IconSave   = p => <Ico {...p} d={["M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z","M17 21v-8H7v8","M7 3v5h8"]} />;
 const IconMapPin = p => <Ico {...p} d={["M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z", "M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"]} />;
 const IconDownload = p => <Ico {...p} d={["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4","M7 10l5 5 5-5","M12 15V3"]} />;
 const IconShare  = p => <Ico {...p} d={["M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8","M16 6l-4-4-4 4","M12 2v13"]} />;
@@ -185,7 +185,6 @@ function Stepper({value, onChange, min=-4, max=8}) {
       </button>
       
       <div className="w-[68px] text-center relative flex flex-col items-center justify-center cursor-pointer">
-        {/* 드롭다운 방식 스코어 입력 추가 */}
         <select 
           value={value} 
           onChange={(e) => onChange(Number(e.target.value))}
@@ -364,7 +363,6 @@ function ScorecardTemplate({ log, ids, names, courseName, totals, exportRef }) {
                   </tr>
                 );
               })}
-              {/* 스코어 카드 최종 합산 Row */}
               <tr className="border-t-[4px] font-bold" style={{ borderColor: 'var(--turf-deep)', backgroundColor: '#f9f9f9' }}>
                 <td className="py-4 border-r text-center align-middle" style={{ borderColor: 'var(--line)', color:'var(--ink)' }}>총 타수</td>
                 {ids.map(id => (
@@ -538,7 +536,6 @@ function App(){
     setRoundId(Date.now()); 
   };
 
-  // 누적 데이터에 총 타수(grossStrokes) 합산 로직 추가
   const totals = useMemo(()=>{
     const t = Object.fromEntries(IDS.map(id=>[id,{pts:0,losses:0, grossStrokes:0}]));
     log.forEach(r => { 
@@ -546,7 +543,7 @@ function App(){
       if(r.finalLosers) {
         r.finalLosers.forEach(id => t[id].losses++);
       }
-      Object.entries(r.gross).forEach(([id,g])=>t[id].grossStrokes+=g); // 누적 타수 계산
+      Object.entries(r.gross).forEach(([id,g])=>t[id].grossStrokes+=g);
     });
     return t;
   }, [log]);
@@ -743,7 +740,7 @@ function App(){
             <button onClick={()=>setAuthView('main')} className="p-2 -ml-2 rounded-full active:bg-white/10 transition-colors">
               <IconBack size={24}/>
             </button>
-            <div className="font-black text-[22px] tracking-tight grow text-center pr-8">내 라운딩 기록 ({historyList.length})</div>
+            <div className="font-black text-[22px] tracking-tight grow text-center pr-8 truncate">내 라운딩 기록 ({historyList.length})</div>
           </div>
         </header>
 
@@ -889,27 +886,27 @@ function App(){
 
       <header className="sticky top-0 z-20" style={{background:"var(--turf-deep)", color:"#F3F7F1"}}>
         <div className="max-w-md mx-auto px-4 h-16 flex items-center gap-3">
-          <IconFlag size={22}/>
-          <div className="grow">
-            <div className="font-black tracking-tight text-[20px] leading-tight">홀 승부 계산기 - WAKOI</div>
-            <div className="text-[13px] font-medium tracking-tight" style={{color:"#9EC4AC"}}>
+          <IconFlag size={22} className="shrink-0" />
+          <div className="grow min-w-0">
+            <div className="font-black tracking-tight text-[20px] leading-tight truncate">홀 승부 계산기 - WAKOI</div>
+            <div className="text-[13px] font-medium tracking-tight truncate" style={{color:"#9EC4AC"}}>
               {currentUser ? `${currentUser.nick} 님` : '비회원'} · 1:1 핸디캡 · {ids.length}인
             </div>
           </div>
 
           {currentUser && currentUser.role === 'admin' && (
-            <button onClick={()=>setAuthView('admin')} className="w-9 h-9 flex items-center justify-center rounded-full bg-white/20 active:bg-white/30 transition-colors mr-1">
+            <button onClick={()=>setAuthView('admin')} className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full bg-white/20 active:bg-white/30 transition-colors mr-1">
               <IconShield size={18} />
             </button>
           )}
 
           {currentUser && (
-            <button onClick={()=>setAuthView('history')} className="w-10 h-10 flex items-center justify-center rounded-full active:bg-white/10 transition-colors">
+            <button onClick={()=>setAuthView('history')} className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full active:bg-white/10 transition-colors">
               <IconHistory size={20}/>
             </button>
           )}
 
-          <div className="num text-right leading-none pl-2 border-l border-white/20">
+          <div className="num shrink-0 text-right leading-none pl-2 border-l border-white/20">
             <div className="text-[12px] font-bold tracking-tight" style={{color:"#9EC4AC"}}>HOLE</div>
             <div className="text-[29px] font-extrabold tracking-tight">{hole > 18 ? "END" : hole}</div>
           </div>
@@ -918,32 +915,32 @@ function App(){
 
       <main className="max-w-md mx-auto px-4">
         <div className="flex items-center gap-2 py-4 mt-1" style={{borderBottom:"1px solid var(--line)"}}>
-          <span className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight shrink-0" style={{color:"var(--ink-soft)"}}>
+          <span className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight shrink-0 whitespace-nowrap" style={{color:"var(--ink-soft)"}}>
             <IconMapPin size={16}/> 골프장
           </span>
           <input 
             value={courseName} 
             onChange={e=>setCourseName(e.target.value)} 
             placeholder="예: 킹스데일 GC"
-            className="grow bg-transparent font-bold tracking-tight text-[17px] outline-none text-right px-2"
+            className="grow min-w-0 bg-transparent font-bold tracking-tight text-[17px] outline-none text-right px-2"
             style={{color:"var(--ink)"}} 
           />
           {currentUser ? (
-            <button onClick={logout} className="text-[13px] font-bold tracking-tight px-2.5 py-1.5 rounded-lg shrink-0 transition-colors" style={{background:"var(--chip)", color:"var(--ink-soft)"}}>
+            <button onClick={logout} className="whitespace-nowrap text-[13px] font-bold tracking-tight px-2.5 py-1.5 rounded-lg shrink-0 transition-colors" style={{background:"var(--chip)", color:"var(--ink-soft)"}}>
               로그아웃
             </button>
           ) : (
-            <button onClick={()=>setAuthView('login')} className="text-[13px] font-bold tracking-tight px-2.5 py-1.5 rounded-lg shrink-0 transition-colors" style={{background:"var(--turf)", color:"#fff"}}>
+            <button onClick={()=>setAuthView('login')} className="whitespace-nowrap text-[13px] font-bold tracking-tight px-2.5 py-1.5 rounded-lg shrink-0 transition-colors" style={{background:"var(--turf)", color:"#fff"}}>
               로그인
             </button>
           )}
         </div>
 
         <div className="flex items-center gap-3 py-4">
-          <span className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight" style={{color:"var(--ink-soft)"}}>
+          <span className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight shrink-0 whitespace-nowrap" style={{color:"var(--ink-soft)"}}>
             <IconUsers size={16}/> 참가 인원
           </span>
-          <div className="flex rounded-xl overflow-hidden ml-auto" style={{border:"1px solid var(--line)"}}>
+          <div className="flex rounded-xl overflow-hidden ml-auto shrink-0" style={{border:"1px solid var(--line)"}}>
             {[3,4].map((n,i)=>(
               <button key={n} onClick={()=>setCount(n)}
                 className="h-10 px-5 text-[16px] font-bold tracking-tight"
@@ -982,7 +979,7 @@ function App(){
         <section className="rounded-2xl mt-4 px-4 shadow-sm" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
           <button onClick={()=>setOpenHcp(v=>!v)} className="w-full flex items-center gap-2 py-4 text-left">
             <span className="font-bold text-[17px] tracking-tight">핸디캡</span>
-            <span className="num text-[14px] px-2.5 py-0.5 rounded-full font-bold"
+            <span className="num text-[14px] px-2.5 py-0.5 rounded-full font-bold shrink-0"
                   style={{background:"var(--chip)", color:"var(--ink-soft)"}}>{activeHcpCount}쌍 적용</span>
             <span className="ml-auto transition-transform" style={{color:"var(--ink-soft)", transform:openHcp?"rotate(180deg)":"none"}}>
               <IconChev size={20}/>
@@ -1039,10 +1036,10 @@ function App(){
           <div className="flex items-center gap-2 mb-1">
             <span className="font-bold text-[17px] tracking-tight">현재 {log.length}홀 누적</span>
             <button onClick={undo} disabled={!log.length}
-              className="ml-auto flex items-center gap-1 text-[14px] font-bold tracking-tight px-2.5 py-1.5 rounded-lg disabled:opacity-30"
+              className="ml-auto flex items-center gap-1 text-[14px] font-bold tracking-tight px-2.5 py-1.5 rounded-lg disabled:opacity-30 shrink-0"
               style={{background:"var(--chip)", color:"var(--ink)"}}><IconUndo size={14}/> 되돌리기</button>
             <button onClick={resetAll}
-              className="flex items-center gap-1 text-[14px] font-bold tracking-tight px-2.5 py-1.5 rounded-lg"
+              className="flex items-center gap-1 text-[14px] font-bold tracking-tight px-2.5 py-1.5 rounded-lg shrink-0"
               style={{background:"var(--chip)", color:"var(--ink)"}}><IconRotate size={14}/> 초기화</button>
           </div>
           
@@ -1052,15 +1049,14 @@ function App(){
             <>
               <div className="flex gap-2 pt-2">
                 {ids.map(id=>(
-                  <div key={id} className="grow rounded-xl p-2.5 text-center" style={{background:"var(--chip)"}}>
+                  <div key={id} className="grow rounded-xl p-2.5 text-center min-w-0" style={{background:"var(--chip)"}}>
                     <Chip id={id} size={24}/>
                     <div className="num text-[23px] font-extrabold mt-1.5 leading-none"
                          style={{color: totals[id].pts>0?"var(--turf)":totals[id].pts<0?"var(--flag)":"var(--ink)"}}>
                       {signed(totals[id].pts)}점
                     </div>
                     <div className="text-[13px] font-semibold tracking-tight mt-1" style={{color:"var(--ink-soft)"}}>패배 {totals[id].losses}</div>
-                    {/* 누적 합산 타수 표시 추가 */}
-                    <div className="text-[14px] font-bold tracking-tight mt-1 num" style={{color:"var(--ink)"}}>
+                    <div className="text-[14px] font-bold tracking-tight mt-1 num truncate" style={{color:"var(--ink)"}}>
                       누적 {signed(totals[id].grossStrokes)}타
                     </div>
                   </div>
@@ -1078,9 +1074,9 @@ function App(){
               {openLog && (
                 <div className="pt-1">
                   <div className="flex items-center gap-2 pb-2 text-[13px] font-bold tracking-tight" style={{color:"var(--ink-soft)"}}>
-                    <span className="num w-8 text-center">홀</span>
+                    <span className="num w-8 text-center shrink-0">홀</span>
                     {ids.map(id=><span key={id} className="grow text-center">{nameOf(id)}</span>)}
-                    <span className="w-[54px] text-right">패자</span>
+                    <span className="w-[54px] text-right shrink-0">패자</span>
                   </div>
                   {log.map(rec=>(
                     <button key={rec.hole} onClick={()=>jumpToHole(rec.hole)}
@@ -1110,7 +1106,7 @@ function App(){
                           </span>
                         );
                       })}
-                      <span className="w-[54px] flex justify-end">
+                      <span className="w-[54px] flex justify-end shrink-0">
                         {rec.finalLosers && rec.finalLosers.length > 0 ? (
                           <span className="num text-[14px] font-extrabold px-2 py-1 rounded-lg text-white"
                                 style={{background:"var(--flag)"}}>{rec.finalLosers.join(",")}</span>
@@ -1122,7 +1118,6 @@ function App(){
                     </button>
                   ))}
                   
-                  {/* 상세 기록 하단 누적 타수 합계 (새로 추가됨) */}
                   <div className="flex items-center gap-2 py-3 mt-1 text-center font-bold" style={{borderTop:"2px solid var(--line)", background:"var(--chip)", borderRadius:"0 0 12px 12px"}}>
                     <span className="w-8 shrink-0 text-[13px]" style={{color:"var(--ink-soft)"}}>합계</span>
                     {ids.map(id => (
@@ -1130,7 +1125,7 @@ function App(){
                         {signed(totals[id].grossStrokes)}
                       </span>
                     ))}
-                    <span className="w-[54px]"></span>
+                    <span className="w-[54px] shrink-0"></span>
                   </div>
 
                   <p className="text-[13px] font-medium tracking-tight pt-2.5" style={{color:"var(--ink-soft)"}}>
@@ -1140,10 +1135,10 @@ function App(){
               )}
 
               <div className="flex gap-2 pt-4 mt-4" style={{borderTop:"1px solid var(--line)"}}>
-                <button onClick={()=>handleExport('download')} className="grow h-12 flex items-center justify-center gap-1.5 rounded-xl text-[16px] font-extrabold tracking-tight text-white active:scale-95 transition-transform" style={{backgroundColor: "var(--turf-deep)"}}>
+                <button onClick={()=>handleExport('download')} className="grow h-12 flex items-center justify-center gap-1.5 rounded-xl text-[16px] font-extrabold tracking-tight text-white active:scale-95 transition-transform shrink-0 min-w-0" style={{backgroundColor: "var(--turf-deep)"}}>
                   <IconDownload size={18}/> 스코어카드 저장
                 </button>
-                <button onClick={()=>handleExport('share')} className="grow h-12 flex items-center justify-center gap-1.5 rounded-xl text-[16px] font-extrabold tracking-tight text-white active:scale-95 transition-transform" style={{backgroundColor: "#3B82F6"}}>
+                <button onClick={()=>handleExport('share')} className="grow h-12 flex items-center justify-center gap-1.5 rounded-xl text-[16px] font-extrabold tracking-tight text-white active:scale-95 transition-transform shrink-0 min-w-0" style={{backgroundColor: "#3B82F6"}}>
                   <IconShare size={18}/> 결과 공유
                 </button>
               </div>
@@ -1160,7 +1155,7 @@ function App(){
           <div className="h-3" />
           <div key={`${result.finalLosers.join('-')}-${result.finalWinners.join('-')}`} className="verdict-in rounded-2xl px-4 py-3 flex items-center gap-3 shadow-md"
                style={{background:verdictColor, color:"#fff"}}>
-            <span style={{opacity:.9}}>{result.finalLosers.length > 0 ? <IconFlag size={24}/> : <IconTrophy size={24}/>}</span>
+            <span style={{opacity:.9}} className="shrink-0">{result.finalLosers.length > 0 ? <IconFlag size={24}/> : <IconTrophy size={24}/>}</span>
             <div className="grow min-w-0">
               {result.finalLosers.length > 0 ? (
                 <>
@@ -1181,7 +1176,7 @@ function App(){
               )}
             </div>
             {result.finalWinners.length > 0 && (
-              <span className="flex items-center gap-1 text-[14px] font-bold tracking-tight px-2.5 py-1.5 rounded-lg shrink-0"
+              <span className="flex items-center gap-1 text-[14px] font-bold tracking-tight px-2.5 py-1.5 rounded-lg shrink-0 whitespace-nowrap"
                     style={{background:"var(--sand)", color:"#1B1405"}}>
                 <IconTrophy size={14}/> {result.finalWinners.map(id => nameOf(id)).join(", ")}
               </span>
