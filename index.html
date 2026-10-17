@@ -120,11 +120,9 @@ const emptyHcp = () => {
   allPairs(IDS).forEach(([x,y]) => { o[pairKey(x,y)] = { giver:null, strokes:1 }; });
   return o;
 };
-// n번 홀의 유효 핸디캡: 그 홀에 저장된 설정 → 없으면 가장 가까운 이전 홀 설정 → 없으면 '없음'
-const hcpFor = (map, n) => {
-  for (let i = n; i >= 1; i--) if (map[i]) return map[i];
-  return emptyHcp();
-};
+// n번 홀의 핸디캡: 그 홀에 저장(사전 설정 포함)된 값이 있으면 그대로, 없으면 '핸디 없음' 기본 상태
+// (이전 홀 설정을 이어받지 않음)
+const hcpFor = (map, n) => map[n] || emptyHcp();
 
 /* ---------- core logic ---------- */
 function hasHandicap(hcpObj) {
@@ -437,8 +435,9 @@ function App(){
 
   // ==========================================
   // 홀별 핸디캡: { [홀번호]: { "A-B": {giver, strokes}, ... } }
-  // - 그 홀에 설정이 있으면 그것을 사용
-  // - 없으면 가장 가까운 이전 홀 설정을 '기본값'으로 이어받음 (수정하면 그 홀에만 저장)
+  // - 그 홀에 미리 설정/저장된 값이 있으면 그대로 불러옴
+  // - 설정이 없는 홀은 핸디 없음(기본). 이전 홀 값을 복사하지 않음
+  // - 핸디캡을 바꾸는 즉시 해당 홀 번호로 자동 저장되므로, 다른 홀을 눌러 이동해도 유지됨
   // ==========================================
   const [holeHcp, setHoleHcp] = useState({});
   const hcp = useMemo(() => hcpFor(holeHcp, hole), [holeHcp, hole]);
@@ -583,6 +582,8 @@ function App(){
   };
   
   const jumpToHole = n => {
+    // 현재 홀의 핸디캡은 수정 즉시 holeHcp[현재 홀]에 저장되어 있으므로 별도 처리 없이 이동 가능
+    // 이동한 홀에 사전 설정(holeHcp[n])이 있으면 그대로 보여주고, 없으면 핸디 없음 기본 상태
     const rec = log.find(r=>r.hole===n);
     setHole(n);
     setGross(rec ? {A:0,B:0,C:0,D:0, ...rec.gross} : {A:0,B:0,C:0,D:0});
@@ -967,7 +968,6 @@ function App(){
   }
 
   const verdictColor = result.finalLosers.length > 0 ? "var(--flag)" : "var(--turf-deep)";
-  const prevHasSetting = hole > 1 && hasHandicap(hcpFor(holeHcp, hole - 1));
 
   return (
     <div className="min-h-screen pb-[248px]">
@@ -1080,10 +1080,8 @@ function App(){
             <div className="pb-3">
               <p className="text-[14px] font-medium tracking-tight leading-snug pb-3" style={{color:"var(--ink-soft)"}}>
                 {hcpIsOwn
-                  ? `이 설정은 ${hole}번 홀에만 적용됩니다. 다른 홀에는 영향을 주지 않으며, 홀 저장 시 함께 기록됩니다.`
-                  : prevHasSetting
-                    ? "이전 홀의 핸디캡을 이어받았습니다. 바꾸면 이 홀에만 반영됩니다."
-                    : "주는 사람을 고르면 받는 사람의 타수에서 그만큼 빼고 비교합니다. 설정은 이 홀에만 적용됩니다."}
+                  ? `${hole}번 홀 전용 설정입니다. 바꾸는 즉시 자동 저장되며, 다른 홀에는 영향을 주지 않습니다.`
+                  : "설정된 핸디캡이 없는 홀입니다. 주는 사람을 고르면 받는 사람의 타수에서 그만큼 빼고 비교하며, 이 홀에만 적용·자동 저장됩니다."}
               </p>
               <div className="flex gap-2 pb-3">
                 <button onClick={copyHcpFromPrev} disabled={hole <= 1}
