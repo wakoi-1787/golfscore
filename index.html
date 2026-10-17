@@ -99,6 +99,9 @@ const IconShield = p => <Ico {...p} d={["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8
 const IconTrash  = p => <Ico {...p} d={["M3 6h18","M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2","M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6","M10 11v6","M14 11v6"]} />;
 const IconAlert  = p => <Ico {...p} d={["M12 9v4","M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z","M12 17h.01"]} />;
 const IconChevDown = p => <Ico {...p} d={["m6 9 6 6 6-6"]} />;
+const IconFolder = p => <Ico {...p} d={["M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"]} />;
+const IconPlay   = p => <Ico {...p} d={["M5 3l14 9-14 9V3z"]} />;
+const IconCheck  = p => <Ico {...p} d={["M20 6 9 17l-5-5"]} />;
 const IconCopy   = p => <Ico {...p} d={["M20 9h-9a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2z","M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"]} />;
 
 /* ---------- constants ---------- */
@@ -123,6 +126,17 @@ const emptyHcp = () => {
 // n번 홀의 핸디캡: 그 홀에 저장(사전 설정 포함)된 값이 있으면 그대로, 없으면 '핸디 없음' 기본 상태
 // (이전 홀 설정을 이어받지 않음)
 const hcpFor = (map, n) => map[n] || emptyHcp();
+
+/* ---------- 중간 저장(Draft) 저장소: 계정별로 여러 개 보관 ---------- */
+const draftKey = (userId) => `wakoi_drafts_${userId}`;
+const readDrafts = (userId) => {
+  try { return JSON.parse(localStorage.getItem(draftKey(userId)) || '[]'); }
+  catch (e) { return []; }
+};
+const writeDrafts = (userId, list) => {
+  try { localStorage.setItem(draftKey(userId), JSON.stringify(list)); }
+  catch (e) { console.error('draft save failed', e); }
+};
 
 /* ---------- core logic ---------- */
 function hasHandicap(hcpObj) {
@@ -477,6 +491,8 @@ function App(){
         setAuthForm({ id: '', pw: '', nick: '' });
         
         resetGameForNewSession(users[cleanId].nick);
+        const savedCount = readDrafts(cleanId).length;
+        if (savedCount > 0) showToast(`중간 저장된 라운딩이 ${savedCount}개 있어요`);
 
         const stats = JSON.parse(localStorage.getItem('wakoi_stats') || '{"dailyVisits":{}, "logins":{}}');
         stats.logins = stats.logins || {};
@@ -509,6 +525,8 @@ function App(){
   };
 
   const logout = () => {
+    // 진행 중인 내용이 있으면 잃지 않도록 중간 저장 후 로그아웃
+    if (currentUser && hasDraftContent()) persistDraft(currentUser);
     setCurrentUser(null);
     localStorage.removeItem('wakoi_current_user');
     setAuthView('login');
@@ -569,7 +587,7 @@ function App(){
     setHole(targetHole);
 
     // 이동한 홀에 저장된 기록이 있으면 불러오고, 없으면 타수만 0으로 초기화
-    // (핸디캡은 hcpFor가 해당 홀 설정 또는 직전 홀 설정을 자동으로 보여줌)
+    // (핸디캡은 hcpFor가 해당 홀에 저장된 설정을 보여주고, 없으면 핸디 없음)
     const targetRec = nextLog.find(r => r.hole === targetHole);
     if (targetRec) {
       setGross({A:0, B:0, C:0, D:0, ...targetRec.gross});
@@ -635,6 +653,11 @@ function App(){
       if (existingIdx >= 0) hList[existingIdx] = newRecord;
       else hList.unshift(newRecord);
       localStorage.setItem(storageKey, JSON.stringify(hList));
+
+      // 라운딩을 끝까지 마쳤으므로 이 라운딩의 중간 저장본은 정리
+      const remain = readDrafts(currentUser.id).filter(d => d.roundId !== roundId);
+      writeDrafts(currentUser.id, remain);
+      setDraftList(remain);
     }
   }, [hole, currentUser, roundId, courseName, ids, names, log, totals]);
 
@@ -656,6 +679,83 @@ function App(){
     if (currentUser) localStorage.setItem(`wakoi_hist_${currentUser.id}`, JSON.stringify(next));
     setHistoryDeleteTarget(null);
     if (historyExpandedId === targetRoundId) setHistoryExpandedId(null);
+  };
+
+  // ==========================================
+  // 중간 저장: 핸디캡 사전 설정, 입력 중인 타수, 홀 기록까지 통째로 계정에 보관
+  // ==========================================
+  const [draftList, setDraftList] = useState([]);
+  const [draftDeleteTarget, setDraftDeleteTarget] = useState(null);
+  const [draftSavedAt, setDraftSavedAt] = useState(null);
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef(null);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2800);
+  };
+
+  useEffect(() => {
+    if (currentUser && (authView === 'main' || authView === 'drafts')) {
+      setDraftList(readDrafts(currentUser.id));
+    } else if (!currentUser) {
+      setDraftList([]);
+    }
+    if (authView === 'drafts') setDraftDeleteTarget(null);
+  }, [authView, currentUser]);
+
+  const hasDraftContent = () =>
+    hole <= 18 && (
+      log.length > 0 ||
+      courseName.trim() !== "" ||
+      Object.values(holeHcp).some(hasHandicap) ||
+      Object.values(gross).some(v => v !== 0)
+    );
+
+  const persistDraft = (user) => {
+    const now = Date.now();
+    const draft = { roundId, updatedAt: now, courseName, count, names, gross, hole, log, holeHcp };
+    const next = [draft, ...readDrafts(user.id).filter(d => d.roundId !== roundId)];
+    writeDrafts(user.id, next);
+    setDraftList(next);
+    setDraftSavedAt(now);
+  };
+
+  const saveDraft = () => {
+    if (!currentUser) { alert("로그인 후 중간 저장을 이용할 수 있어요."); return; }
+    persistDraft(currentUser);
+    showToast("중간 저장했어요. 로그아웃 후에도 이어서 수정할 수 있어요");
+  };
+
+  const openDrafts = () => {
+    if (!currentUser) { alert("로그인 후 저장된 라운딩을 볼 수 있어요."); return; }
+    setAuthView('drafts');
+  };
+
+  const resumeDraft = (d) => {
+    // 지금 하던 내용이 있으면 먼저 보관해서 잃어버리지 않게 함
+    if (currentUser && d.roundId !== roundId && hasDraftContent()) persistDraft(currentUser);
+    setRoundId(d.roundId);
+    setCount(d.count || 4);
+    setNames({ A:"", B:"", C:"", D:"", ...(d.names || {}) });
+    setCourseName(d.courseName || "");
+    setGross({ A:0, B:0, C:0, D:0, ...(d.gross || {}) });
+    setHole(d.hole || 1);
+    setLog(d.log || []);
+    setHoleHcp(d.holeHcp || {});
+    setDraftSavedAt(d.updatedAt || null);
+    setAuthView('main');
+    window.scrollTo({ top: 0 });
+    showToast("저장된 라운딩을 불러왔어요");
+  };
+
+  const removeDraft = (rid) => {
+    if (!currentUser) return;
+    const next = draftList.filter(d => d.roundId !== rid);
+    writeDrafts(currentUser.id, next);
+    setDraftList(next);
+    setDraftDeleteTarget(null);
   };
 
   useEffect(()=>{
@@ -967,12 +1067,122 @@ function App(){
     );
   }
 
+  if (authView === 'drafts') {
+    const deleteTargetDraft = draftList.find(d => d.roundId === draftDeleteTarget);
+    const fmt = (t) => new Date(t).toLocaleString('ko-KR', { month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    return (
+      <div className="min-h-screen pb-12" style={{background:"var(--paper)"}}>
+        <header className="sticky top-0 z-20" style={{background:"var(--turf-deep)", color:"#F3F7F1"}}>
+          <div className="max-w-md mx-auto px-4 h-16 flex items-center gap-3">
+            <button onClick={()=>setAuthView('main')} className="p-2 -ml-2 rounded-full active:bg-white/10 transition-colors">
+              <IconBack size={24}/>
+            </button>
+            <div className="font-black text-[22px] tracking-tight grow text-center pr-8 truncate">저장된 라운딩 ({draftList.length})</div>
+          </div>
+        </header>
+
+        <main className="max-w-md mx-auto px-4 py-6 space-y-3">
+          <p className="text-[14px] font-medium tracking-tight leading-snug px-1" style={{color:"var(--ink-soft)"}}>
+            중간 저장한 라운딩입니다. 불러오면 핸디캡 설정, 타수, 홀 기록이 그대로 복원되고 이어서 수정할 수 있어요.
+          </p>
+
+          {draftList.length === 0 ? (
+            <div className="text-center py-16 font-bold text-[17px] tracking-tight" style={{color:"var(--ink-soft)"}}>중간 저장된 라운딩이 없습니다.</div>
+          ) : (
+            draftList.map(d => {
+              const hcpHoleCount = Object.values(d.holeHcp || {}).filter(hasHandicap).length;
+              const playerIds = IDS.slice(0, d.count || 4);
+              const isCurrent = d.roundId === roundId;
+              return (
+                <div key={d.roundId} className="rounded-2xl p-4" style={{background:"var(--card)", border: isCurrent ? "1.5px solid var(--turf)" : "1px solid var(--line)"}}>
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{background:"var(--chip)", color:"var(--turf-deep)"}}>
+                      <IconFolder size={22}/>
+                    </div>
+                    <div className="grow min-w-0">
+                      <div className="font-extrabold text-[20px] tracking-tight truncate">{d.courseName || '골프장 미지정'}</div>
+                      <div className="text-[14px] font-semibold mt-0.5 tracking-tight" style={{color:"var(--ink-soft)"}}>
+                        {fmt(d.updatedAt)} 저장
+                      </div>
+                    </div>
+                    <button onClick={()=>setDraftDeleteTarget(d.roundId)}
+                      className="w-10 h-10 shrink-0 flex items-center justify-center rounded-xl active:scale-90 transition-transform"
+                      style={{color:"var(--flag)"}} aria-label="저장본 삭제">
+                      <IconTrash size={20}/>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    <span className="text-[13px] font-bold tracking-tight px-2.5 py-1 rounded-full" style={{background:"var(--chip)", color:"var(--ink)"}}>
+                      {(d.log || []).length}홀 기록
+                    </span>
+                    <span className="text-[13px] font-bold tracking-tight px-2.5 py-1 rounded-full" style={{background:"var(--chip)", color:"var(--ink)"}}>
+                      현재 {d.hole > 18 ? "종료" : `${d.hole}번 홀`}
+                    </span>
+                    <span className="text-[13px] font-bold tracking-tight px-2.5 py-1 rounded-full" style={{backgroundColor:"#E0F2FE", color:"#0284C7"}}>
+                      핸디 설정 {hcpHoleCount}홀
+                    </span>
+                    <span className="text-[13px] font-bold tracking-tight px-2.5 py-1 rounded-full" style={{background:"var(--chip)", color:"var(--ink-soft)"}}>
+                      {playerIds.map(id => (d.names?.[id]?.trim() || id)).join(" · ")}
+                    </span>
+                  </div>
+
+                  <button onClick={()=>resumeDraft(d)}
+                    className="w-full flex items-center justify-center gap-2 h-12 mt-3 rounded-xl font-extrabold tracking-tight text-[16px] text-white active:scale-[.98] transition-transform"
+                    style={{background:"var(--turf)"}}>
+                    <IconPlay size={16}/> {isCurrent ? "현재 진행 중 · 돌아가기" : "불러와서 이어서 수정"}
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </main>
+
+        {deleteTargetDraft && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{background:"rgba(10,16,12,0.55)"}}>
+            <div className="w-full max-w-xs rounded-3xl p-6 text-center" style={{background:"var(--card)"}}>
+              <div className="w-14 h-14 mx-auto rounded-full flex items-center justify-center mb-4"
+                   style={{background:"color-mix(in srgb, var(--flag) 14%, transparent)", color:"var(--flag)"}}>
+                <IconAlert size={28}/>
+              </div>
+              <div className="font-black tracking-tight text-[21px] mb-1.5">정말 삭제하시겠습니까?</div>
+              <div className="text-[16px] font-medium tracking-tight mb-6" style={{color:"var(--ink-soft)"}}>
+                {deleteTargetDraft.courseName || '골프장 미지정'} 중간 저장본이 영구 삭제됩니다.
+              </div>
+              <div className="flex gap-2.5">
+                <button onClick={()=>setDraftDeleteTarget(null)}
+                  className="flex-1 h-[52px] rounded-xl font-bold tracking-tight text-[17px] active:scale-[.98] transition-transform"
+                  style={{background:"var(--chip)", color:"var(--ink)"}}>
+                  아니요
+                </button>
+                <button onClick={()=>removeDraft(draftDeleteTarget)}
+                  className="flex-1 h-[52px] rounded-xl font-bold tracking-tight text-[17px] text-white active:scale-[.98] transition-transform"
+                  style={{background:"var(--flag)"}}>
+                  네, 삭제
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const verdictColor = result.finalLosers.length > 0 ? "var(--flag)" : "var(--turf-deep)";
 
   return (
     <div className="min-h-screen pb-[248px]">
       
       <ScorecardTemplate log={log} ids={ids} names={names} courseName={courseName} totals={totals} exportRef={exportRef} />
+
+      {toast && (
+        <div className="fixed left-0 right-0 z-[60] flex justify-center px-4 pointer-events-none" style={{top:"calc(76px + env(safe-area-inset-top))"}}>
+          <div className="verdict-in flex items-center gap-2 px-4 py-3 rounded-2xl shadow-lg text-[15px] font-bold tracking-tight max-w-md"
+               style={{background:"var(--turf-deep)", color:"#fff"}}>
+            <IconCheck size={18} className="shrink-0"/> <span>{toast}</span>
+          </div>
+        </div>
+      )}
 
       <header className="sticky top-0 z-20" style={{background:"var(--turf-deep)", color:"#F3F7F1"}}>
         <div className="max-w-md mx-auto px-4 h-16 flex items-center gap-3">
@@ -1024,6 +1234,32 @@ function App(){
               로그인
             </button>
           )}
+        </div>
+
+        {/* 중간 저장 / 저장된 라운딩 */}
+        <div className="pt-4">
+          <div className="flex gap-2">
+            <button onClick={saveDraft}
+              className="grow min-w-0 h-12 flex items-center justify-center gap-1.5 rounded-xl text-[16px] font-extrabold tracking-tight text-white active:scale-[.98] transition-transform"
+              style={{background:"var(--turf-deep)"}}>
+              <IconSave size={18}/> 중간 저장
+            </button>
+            <button onClick={openDrafts}
+              className="grow min-w-0 h-12 flex items-center justify-center gap-1.5 rounded-xl text-[16px] font-extrabold tracking-tight active:scale-[.98] transition-transform"
+              style={{background:"var(--chip)", color:"var(--ink)"}}>
+              <IconFolder size={18}/> 저장된 라운딩
+              {draftList.length > 0 && (
+                <span className="num text-[13px] px-2 py-0.5 rounded-full text-white" style={{background:"var(--turf)"}}>{draftList.length}</span>
+              )}
+            </button>
+          </div>
+          <p className="text-[13px] font-medium tracking-tight pt-2 px-1" style={{color:"var(--ink-soft)"}}>
+            {!currentUser
+              ? "로그인하면 핸디캡을 미리 설정해 두고 중간 저장할 수 있어요."
+              : draftSavedAt
+                ? `마지막 중간 저장 ${new Date(draftSavedAt).toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})} · 로그아웃해도 유지돼요`
+                : "핸디캡·타수·홀 기록이 저장되고, 다시 접속하면 이어서 수정할 수 있어요."}
+          </p>
         </div>
 
         <div className="flex items-center gap-3 py-4">
