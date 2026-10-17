@@ -89,7 +89,7 @@ const IconRotate = p => <Ico {...p} d={["M3 12a9 9 0 1 0 3-6.7L3 8","M3 3v5h5"]}
 const IconUndo   = p => <Ico {...p} d={["M9 14 4 9l5-5","M4 9h11a5 5 0 0 1 0 10h-4"]} />;
 const IconSwords = p => <Ico {...p} d={["M14.5 17.5 21 11l-1-4-4-1-6.5 6.5","M3 21l4.5-4.5","M6.5 6.5 3 3l1 4 4 1","M13 13l-6 6"]} />;
 const IconUsers  = p => <Ico {...p} d={["M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2","M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8","M22 20v-2a4 4 0 0 0-3-3.9","M16 3.1a4 4 0 0 1 0 7.8"]} />;
-const IconSave   = p => <Ico {...p} d={["M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z","M17 21v-8H7v8","M7 3v5h8"]} />;
+const IconSave   = p => <Ico {...p} d={["M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z","M17 21v-8H7v8","M7 3v5h8"]} />;
 const IconMapPin = p => <Ico {...p} d={["M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z", "M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"]} />;
 const IconDownload = p => <Ico {...p} d={["M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4","M7 10l5 5 5-5","M12 15V3"]} />;
 const IconShare  = p => <Ico {...p} d={["M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8","M16 6l-4-4-4 4","M12 2v13"]} />;
@@ -99,6 +99,7 @@ const IconShield = p => <Ico {...p} d={["M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8
 const IconTrash  = p => <Ico {...p} d={["M3 6h18","M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2","M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6","M10 11v6","M14 11v6"]} />;
 const IconAlert  = p => <Ico {...p} d={["M12 9v4","M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z","M12 17h.01"]} />;
 const IconChevDown = p => <Ico {...p} d={["m6 9 6 6 6-6"]} />;
+const IconCopy   = p => <Ico {...p} d={["M20 9h-9a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2z","M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"]} />;
 
 /* ---------- constants ---------- */
 const IDS = ["A","B","C","D"];
@@ -112,6 +113,18 @@ const allPairs = (ids) => {
 const SCORE_NAME = { "-3":"알바트로스","-2":"이글","-1":"버디","0":"파","1":"보기","2":"더블보기","3":"트리플보기" };
 const scoreLabel = n => SCORE_NAME[String(n)] || (n>0 ? `+${n}타` : `${n}타`);
 const signed = n => (n>0 ? `+${n}` : n<0 ? `${n}` : "0"); 
+
+/* ---------- 핸디캡 헬퍼 (홀별 개별 설정) ---------- */
+const emptyHcp = () => {
+  const o = {};
+  allPairs(IDS).forEach(([x,y]) => { o[pairKey(x,y)] = { giver:null, strokes:1 }; });
+  return o;
+};
+// n번 홀의 유효 핸디캡: 그 홀에 저장된 설정 → 없으면 가장 가까운 이전 홀 설정 → 없으면 '없음'
+const hcpFor = (map, n) => {
+  for (let i = n; i >= 1; i--) if (map[i]) return map[i];
+  return emptyHcp();
+};
 
 /* ---------- core logic ---------- */
 function hasHandicap(hcpObj) {
@@ -250,7 +263,7 @@ function HandicapRow({x, y, state, onChange}) {
   );
 }
 
-function HoleStrip({log, hole, live, onPick, stripRef}) {
+function HoleStrip({log, hole, live, onPick, stripRef, hcpHoles}) {
   return (
     <div ref={stripRef} className="flex gap-1 overflow-x-auto noscroll -mx-1 px-1"
          style={{scrollbarWidth:"none"}}>
@@ -261,10 +274,11 @@ function HoleStrip({log, hole, live, onPick, stripRef}) {
         const recStr = rec && rec.finalLosers && rec.finalLosers.length > 0 ? rec.finalLosers.join(",") : undefined;
         const loser = isNow ? liveStr : rec ? recStr : undefined;
         const played = isNow || !!rec;
+        const hasHcpDot = hcpHoles && hcpHoles.has(n);
         
         return (
           <button key={n} data-hole={n} onClick={()=>onPick(n)}
-            className="shrink-0 rounded-lg flex flex-col items-center justify-center"
+            className="shrink-0 rounded-lg flex flex-col items-center justify-center relative"
             style={{
               width:34, height:44,
               background: loser ? "var(--flag)" : played ? "var(--chip)" : "transparent",
@@ -272,7 +286,10 @@ function HoleStrip({log, hole, live, onPick, stripRef}) {
               border: isNow ? "2px solid var(--turf)" : "1px solid var(--line)",
               opacity: played ? 1 : .55,
             }}
-            aria-label={`${n}번 홀${loser?` 패자 ${loser}`:""}`}>
+            aria-label={`${n}번 홀${hasHcpDot?" 핸디캡 적용":""}${loser?` 패자 ${loser}`:""}`}>
+            {hasHcpDot && (
+              <span className="absolute rounded-full" style={{top:3, right:3, width:6, height:6, background:"#38BDF8"}} />
+            )}
             <span className="num text-[12px] leading-none" style={{opacity:.75}}>{n}</span>
             <span className="num text-[17px] font-extrabold leading-none mt-0.5" style={{letterSpacing: loser && loser.length > 1 ? "-1px" : "normal"}}>
               {loser ? loser : played ? "–" : ""}
@@ -417,9 +434,22 @@ function App(){
   const [gross, setGross] = useState({A:0,B:0,C:0,D:0});
   const [hole, setHole] = useState(1);
   const [log, setLog] = useState([]);
-  const [hcp, setHcp] = useState(()=>{
-    const o={}; allPairs(IDS).forEach(([x,y])=>o[pairKey(x,y)]={giver:null,strokes:1}); return o;
-  });
+
+  // ==========================================
+  // 홀별 핸디캡: { [홀번호]: { "A-B": {giver, strokes}, ... } }
+  // - 그 홀에 설정이 있으면 그것을 사용
+  // - 없으면 가장 가까운 이전 홀 설정을 '기본값'으로 이어받음 (수정하면 그 홀에만 저장)
+  // ==========================================
+  const [holeHcp, setHoleHcp] = useState({});
+  const hcp = useMemo(() => hcpFor(holeHcp, hole), [holeHcp, hole]);
+  const hcpIsOwn = !!holeHcp[hole];
+
+  const hcpHoles = useMemo(() => {
+    const s = new Set();
+    Object.entries(holeHcp).forEach(([k, v]) => { if (hasHandicap(v)) s.add(Number(k)); });
+    if (hasHandicap(hcp)) s.add(hole); else s.delete(hole);
+    return s;
+  }, [holeHcp, hcp, hole]);
 
   const resetGameForNewSession = (nick = "") => {
     setLog([]);
@@ -429,9 +459,7 @@ function App(){
     setCourseName("");
     setCount(4);
     setNames({ A: nick, B: "", C: "", D: "" });
-    const newHcp = {};
-    allPairs(IDS).forEach(([x,y])=>newHcp[pairKey(x,y)]={giver:null,strokes:1});
-    setHcp(newHcp);
+    setHoleHcp({});
   };
 
   const handleAuth = (type) => {
@@ -499,15 +527,32 @@ function App(){
   const activeHcpCount = allPairs(ids).filter(([x,y])=>hcp[pairKey(x,y)].giver).length;
 
   const setGrossFor = (id,v) => setGross(s=>({...s,[id]:v}));
-  const setHcpFor = (x,y,v) => setHcp(s=>({...s,[pairKey(x,y)]:v}));
 
-  // ==========================================
-  // 핵심 변경 부분: saveHole
-  // ==========================================
+  // 현재 홀의 핸디캡만 수정 (다른 홀에는 영향 없음)
+  const setHcpFor = (x, y, v) => {
+    const h = hole;
+    setHoleHcp(s => ({ ...s, [h]: { ...hcpFor(s, h), [pairKey(x,y)]: v } }));
+  };
+  // 이전 홀과 동일하게
+  const copyHcpFromPrev = () => {
+    const h = hole;
+    setHoleHcp(s => ({ ...s, [h]: { ...hcpFor(s, h - 1) } }));
+  };
+  // 이 홀 핸디캡 모두 해제
+  const clearHcpForHole = () => {
+    const h = hole;
+    setHoleHcp(s => ({ ...s, [h]: emptyHcp() }));
+  };
+
   const saveHole = () => {
     if (hole > 18) return;
 
-    // 현재 홀 데이터 생성
+    // 현재 홀의 핸디캡 설정을 이 홀 전용으로 고정(저장)
+    const hcpSnapshot = Object.fromEntries(
+      allPairs(IDS).map(([x,y]) => [pairKey(x,y), { ...(hcp[pairKey(x,y)] || { giver:null, strokes:1 }) }])
+    );
+    setHoleHcp(s => ({ ...s, [hole]: hcpSnapshot }));
+
     const newRecord = {
       hole, ids:[...ids], gross:{...gross},
       pts: Object.fromEntries(ids.map(id=>[id, result.tally[id].pts])),
@@ -516,26 +561,20 @@ function App(){
       finalLosers: result.finalLosers, finalWinners: result.finalWinners,
     };
     
-    // 로그 업데이트
     const nextLog = [...log.filter(r => r.hole !== hole), newRecord].sort((a,b) => a.hole - b.hole);
     setLog(nextLog);
 
-    // 저장 후 이동할 타겟 홀 번호 계산
+    // 과거 홀을 수정해 저장한 경우, 가장 멀리 진행한 홀의 다음 홀로 복귀
     const maxHole = Math.max(0, ...nextLog.map(r => r.hole));
-    
-    // 만약 과거 홀(예: 15번까지 쳤는데 10번 홀을 수정한 경우)을 저장했다면,
-    // 중간에 비어버리거나 리셋되지 않고 가장 멀리 진행했던 홀의 다음 홀(16)로 복귀.
-    let targetHole = hole < maxHole ? Math.min(19, maxHole + 1) : Math.min(19, hole + 1);
-    
+    const targetHole = hole < maxHole ? Math.min(19, maxHole + 1) : Math.min(19, hole + 1);
     setHole(targetHole);
 
-    // 이동할 홀(targetHole)에 이미 저장된 기록이 있다면, 해당 정보를 불러옴
-    // 기록이 없다면 0으로 초기화
+    // 이동한 홀에 저장된 기록이 있으면 불러오고, 없으면 타수만 0으로 초기화
+    // (핸디캡은 hcpFor가 해당 홀 설정 또는 직전 홀 설정을 자동으로 보여줌)
     const targetRec = nextLog.find(r => r.hole === targetHole);
     if (targetRec) {
       setGross({A:0, B:0, C:0, D:0, ...targetRec.gross});
       setCount(targetRec.ids.length);
-      setHcp(s => ({...s, ...targetRec.hcp}));
     } else {
       setGross({A:0, B:0, C:0, D:0});
     }
@@ -547,7 +586,11 @@ function App(){
     const rec = log.find(r=>r.hole===n);
     setHole(n);
     setGross(rec ? {A:0,B:0,C:0,D:0, ...rec.gross} : {A:0,B:0,C:0,D:0});
-    if (rec) { setCount(rec.ids.length); setHcp(s=>({...s, ...rec.hcp})); }
+    if (rec) {
+      setCount(rec.ids.length);
+      // 저장된 홀의 핸디캡을 해당 홀 설정으로 복원 (이미 있으면 유지)
+      setHoleHcp(s => s[n] ? s : ({ ...s, [n]: { ...emptyHcp(), ...rec.hcp } }));
+    }
     window.scrollTo({top:0, behavior:"smooth"});
   };
   
@@ -561,6 +604,7 @@ function App(){
   
   const resetAll = () => { 
     setLog([]); setHole(1); setGross({A:0,B:0,C:0,D:0}); 
+    setHoleHcp({});
     setRoundId(Date.now()); 
   };
 
@@ -923,6 +967,7 @@ function App(){
   }
 
   const verdictColor = result.finalLosers.length > 0 ? "var(--flag)" : "var(--turf-deep)";
+  const prevHasSetting = hole > 1 && hasHandicap(hcpFor(holeHcp, hole - 1));
 
   return (
     <div className="min-h-screen pb-[248px]">
@@ -1021,9 +1066,10 @@ function App(){
           })}
         </section>
 
+        {/* 핸디캡 (현재 홀 전용) */}
         <section className="rounded-2xl mt-4 px-4 shadow-sm" style={{background:"var(--card)", border:"1px solid var(--line)"}}>
           <button onClick={()=>setOpenHcp(v=>!v)} className="w-full flex items-center gap-2 py-4 text-left">
-            <span className="font-bold text-[17px] tracking-tight">핸디캡</span>
+            <span className="font-bold text-[17px] tracking-tight">{hole > 18 ? "핸디캡" : `${hole}번 홀 핸디캡`}</span>
             <span className="num text-[14px] px-2.5 py-0.5 rounded-full font-bold shrink-0"
                   style={{background:"var(--chip)", color:"var(--ink-soft)"}}>{activeHcpCount}쌍 적용</span>
             <span className="ml-auto transition-transform" style={{color:"var(--ink-soft)", transform:openHcp?"rotate(180deg)":"none"}}>
@@ -1032,9 +1078,25 @@ function App(){
           </button>
           {openHcp && (
             <div className="pb-3">
-              <p className="text-[14px] font-medium tracking-tight leading-snug pb-2" style={{color:"var(--ink-soft)"}}>
-                주는 사람을 고르면 받는 사람의 타수에서 그만큼 빼고 비교합니다. 홀마다 바꿔도 됩니다.
+              <p className="text-[14px] font-medium tracking-tight leading-snug pb-3" style={{color:"var(--ink-soft)"}}>
+                {hcpIsOwn
+                  ? `이 설정은 ${hole}번 홀에만 적용됩니다. 다른 홀에는 영향을 주지 않으며, 홀 저장 시 함께 기록됩니다.`
+                  : prevHasSetting
+                    ? "이전 홀의 핸디캡을 이어받았습니다. 바꾸면 이 홀에만 반영됩니다."
+                    : "주는 사람을 고르면 받는 사람의 타수에서 그만큼 빼고 비교합니다. 설정은 이 홀에만 적용됩니다."}
               </p>
+              <div className="flex gap-2 pb-3">
+                <button onClick={copyHcpFromPrev} disabled={hole <= 1}
+                  className="grow flex items-center justify-center gap-1.5 h-11 rounded-xl text-[14px] font-bold tracking-tight disabled:opacity-30 active:scale-[.98] transition-transform"
+                  style={{background:"var(--chip)", color:"var(--ink)"}}>
+                  <IconCopy size={15}/> 이전 홀과 동일
+                </button>
+                <button onClick={clearHcpForHole}
+                  className="grow flex items-center justify-center gap-1.5 h-11 rounded-xl text-[14px] font-bold tracking-tight active:scale-[.98] transition-transform"
+                  style={{background:"var(--chip)", color:"var(--ink)"}}>
+                  <IconRotate size={15}/> 이 홀 핸디 해제
+                </button>
+              </div>
               {allPairs(ids).map(([x,y])=>(
                 <HandicapRow key={pairKey(x,y)} x={x} y={y}
                   state={hcp[pairKey(x,y)]} onChange={v=>setHcpFor(x,y,v)} />
@@ -1196,7 +1258,7 @@ function App(){
 
       <div className="fixed bottom-0 left-0 right-0 z-30 shadow-[0_-10px_20px_rgba(0,0,0,0.03)]" style={{background:"var(--paper)", borderTop:"1px solid var(--line)"}}>
         <div className="max-w-md mx-auto px-4 pt-3" style={{paddingBottom:"calc(16px + env(safe-area-inset-bottom))"}}>
-          <HoleStrip log={log} hole={hole} live={result.finalLosers} onPick={jumpToHole} stripRef={stripRef} />
+          <HoleStrip log={log} hole={hole} live={result.finalLosers} onPick={jumpToHole} stripRef={stripRef} hcpHoles={hcpHoles} />
           <div className="h-3" />
           <div key={`${result.finalLosers.join('-')}-${result.finalWinners.join('-')}`} className="verdict-in rounded-2xl px-4 py-3 flex items-center gap-3 shadow-md"
                style={{background:verdictColor, color:"#fff"}}>
